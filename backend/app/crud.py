@@ -204,7 +204,10 @@ async def get_images(
             images_dict_list = json.loads(cached_images_json)
             response_images = []
             for img_dict in images_dict_list:
-                img_dict['tags'] = [models.Tag(**tag_data) for tag_data in img_dict.get('tags', [])]
+                img_dict['tags'] = [
+                    models.Tag(**tag_data) if isinstance(tag_data, dict) else models.Tag(id=0, name=tag_data)
+                    for tag_data in img_dict.get('tags', [])
+                ]
                 response_images.append(models.Image(**img_dict))
             print(f"Cache HIT for image list: {cache_key}")
             return response_images
@@ -293,7 +296,10 @@ async def get_images(
             mimetype=record['mimetype'],
             filesize=record['filesize'],
             uploaded_at=record['uploaded_at'],
-            tags=[models.Tag(**tag_data) for tag_data in record['tags']],
+        tags=[
+            models.Tag(**tag_data) if isinstance(tag_data, dict) else models.Tag(id=0, name=tag_data)
+            for tag_data in record['tags']
+        ],
             image_url=None # URL to be populated in router
         ))
     return images_list
