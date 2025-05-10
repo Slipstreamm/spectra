@@ -19,12 +19,17 @@ lib64/
 parts/
 sdist/
 var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
 # PyInstaller
-#  Usually contains the output of `pyinstaller` package
+#  Usually these files are written by a python script from a template
+#  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
 
@@ -42,8 +47,10 @@ htmlcov/
 nosetests.xml
 coverage.xml
 *.cover
+*.py,cover
 .hypothesis/
 .pytest_cache/
+cover/
 
 # Translations
 *.mo
@@ -62,6 +69,9 @@ instance/
 # Scrapy stuff:
 .scrapy
 
+# Sphinx documentation
+docs/_build/
+
 # PyBuilder
 target/
 
@@ -75,17 +85,34 @@ ipython_config.py
 # pyenv
 .python-version
 
-# pipenv
-Pipfile.lock
-
-# poetry
-poetry.lock
-
-# PEP 582; used by some tools like pdm
+# PEP 582; __pypackages__ directory
 __pypackages__/
 
-# VS Code
-.vscode/
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
 
 # mypy
 .mypy_cache/
@@ -101,14 +128,17 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
-# VS Code workspace storage
-.vscode-test/
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
 
-# Spyder IDE
-.spyderproject
-.spyproject
+# Project-specific
+# Backend uploads directory
+backend/uploads/
 
-# Rope project
-.ropeproject
-
-*.env
+# If you have other log files or temporary files specific to your app, add them here.
+# e.g., *.log
