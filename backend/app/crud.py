@@ -5,6 +5,40 @@ from typing import List, Dict, Any, Optional # Added Optional
 from . import models # Using models directly as Pydantic models for API and DB representation for now
 # from .core.config import settings # May not be needed directly in crud
 
+# Helper function to robustly parse tags
+def _parse_tags_from_source(tags_source: Any) -> List[models.Tag]:
+    actual_tag_data_list = []
+    if isinstance(tags_source, str):
+        try:
+            parsed_json = json.loads(tags_source)
+            if isinstance(parsed_json, list):
+                actual_tag_data_list = parsed_json
+            else:
+                print(f"Warning: Tags source string did not parse to a list: {str(tags_source)[:100]}")
+        except json.JSONDecodeError:
+            print(f"Warning: JSONDecodeError for tags source string: {str(tags_source)[:100]}")
+    elif isinstance(tags_source, list):
+        actual_tag_data_list = tags_source
+    else:
+        if tags_source is not None: # Avoid warning for None, which can be valid (no tags)
+            print(f"Warning: Tags source is neither string nor list: {type(tags_source)}")
+
+    parsed_tags = []
+    for item in actual_tag_data_list:
+        if isinstance(item, dict):
+            try:
+                # Ensure 'id' is present and is an int, 'name' is present and is a str
+                if 'id' in item and isinstance(item['id'], int) and \
+                   'name' in item and isinstance(item['name'], str):
+                    parsed_tags.append(models.Tag(**item))
+                else:
+                    print(f"Warning: Tag item dict is missing fields or has wrong types: {item}")
+            except Exception as e: # Catch PydanticError or other issues during model creation
+                print(f"Warning: Failed to create Tag from dict {item}. Error: {e}")
+        else:
+            print(f"Warning: Item in tags list is not a dict: {item}")
+    return parsed_tags
+
 # Cache constants
 IMAGE_CACHE_PREFIX = "image:"
 IMAGE_LIST_CACHE_PREFIX = "images_list:"
@@ -204,11 +238,12 @@ async def get_images(
             images_dict_list = json.loads(cached_images_json)
             response_images = []
             for img_dict in images_dict_list:
-                img_dict['tags'] = [
-                    models.Tag(**tag_data) if isinstance(tag_data, dict) else models.Tag(id=0, name=tag_data)
-                    for tag_data in img_dict.get('tags', [])
-                ]
-                response_images.append(models.Image(**img_dict))
+                # Use helper function to parse tags from cache
+                img_dict['tags'] = _parse_tags_from_source(img_dict.get('tags', []))
+                try:
+                    response_images.append(models.Image(**img_dict))
+                except Exception as e: # Catch Pydantic validation errors for the whole image
+                    print(f"Warning: Could not create Image from cached dict: {img_dict}. Error: {e}")
             print(f"Cache HIT for image list: {cache_key}")
             return response_images
         except json.JSONDecodeError:
@@ -289,19 +324,34 @@ async def get_images(
     
     images_list = []
     for record in image_records:
-        images_list.append(models.Image(
-            id=record['id'],
-            filename=record['filename'],
-            filepath=record['filepath'],
-            mimetype=record['mimetype'],
-            filesize=record['filesize'],
-            uploaded_at=record['uploaded_at'],
-        tags=[
-            models.Tag(**tag_data) if isinstance(tag_data, dict) else models.Tag(id=0, name=tag_data)
-            for tag_data in record['tags']
-        ],
-            image_url=None # URL to be populated in router
-        ))
+        # Use helper function to parse tags from DB record
+        parsed_db_tags = _parse_tags_from_source(record['tags'])
+        try:
+            images_list.append(models.Image(
+                id=record['id'],
+                filename=record['filename'],
+                filepath=record['filepath'],
+                mimetype=record['mimetype'],
+                filesize=record['filesize'],
+                uploaded_at=record['uploaded_at'],
+                tags=parsed_db_tags,
+                image_url=None # URL to be populated in router
+            ))
+        except Exception as e: # Catch Pydantic validation errors
+            print(f"Warning: Could not create Image from DB record: {record}. Error: {e}")
+    
+    # Cache the successfully processed list
+    # Ensure this part is correct for caching:
+    # We should cache the model_dump() version of the images_list
+    if images_list: # Only cache if there's something to cache and no major errors occurred during list construction
+        try:
+            # Assuming images_list contains valid models.Image objects
+            cacheable_data = json.dumps([img.model_dump() for img in images_list])
+            await redis.set(cache_key, cacheable_data, ex=CACHE_EXPIRY_SECONDS)
+            print(f"DB HIT for image list. Stored in cache: {cache_key}")
+        except Exception as e:
+            print(f"Error caching image list: {e}")
+            
     return images_list
 
 
