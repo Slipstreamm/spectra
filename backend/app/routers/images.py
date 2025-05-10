@@ -14,6 +14,7 @@ from pydantic import HttpUrl
 from .. import crud, models # Removed schemas, using models for Pydantic models
 from ..core.config import settings
 from ..db import get_db_connection, get_redis_connection # Added get_redis_connection
+from ..main import limiter # Import the limiter instance from main.py
 
 router = APIRouter()
 
@@ -29,7 +30,7 @@ def get_image_url(request: Request, filename: str) -> str:
 
 
 @router.post("/upload/", response_model=models.Image, status_code=201)
-@settings.limiter.limit(settings.UPLOAD_RATE_LIMIT) # Apply specific rate limit for uploads
+@limiter.limit(settings.UPLOAD_RATE_LIMIT) # Apply specific rate limit for uploads using the imported limiter
 async def upload_image(
     request: Request, # Add request for rate limiter
     file: UploadFile = File(...),
