@@ -3,6 +3,7 @@ import shutil
 import uuid
 from pathlib import Path
 from typing import List, Optional
+import magic # For python-magic
 
 import asyncpg
 import redis.asyncio as redis_async # For type hinting
@@ -28,8 +29,9 @@ def get_image_url(request: Request, filename: str) -> str:
 
 
 @router.post("/upload/", response_model=models.Image, status_code=201)
+@settings.limiter.limit(settings.UPLOAD_RATE_LIMIT) # Apply specific rate limit for uploads
 async def upload_image(
-    request: Request,
+    request: Request, # Add request for rate limiter
     file: UploadFile = File(...),
     tags_str: Optional[str] = Form(None), # Comma-separated tags as a string
     db: asyncpg.Connection = Depends(get_db_connection),
@@ -39,8 +41,38 @@ async def upload_image(
     Upload an image with optional tags.
     Tags are provided as a comma-separated string.
     """
+    # Validate length of raw tags_str before splitting
+    if tags_str and len(tags_str) > 1000: # Max 10 tags * 50 chars + 9 commas + some buffer ~ 600. 1000 is generous.
+        raise HTTPException(status_code=413, detail="Tags string too long. Maximum 1000 characters allowed.")
+
+    # Initial check based on client-provided Content-Type
     if file.content_type not in settings.ALLOWED_MIME_TYPES:
-        raise HTTPException(status_code=400, detail=f"Invalid image type. Allowed types: {settings.ALLOWED_MIME_TYPES}")
+        raise HTTPException(status_code=400, detail=f"Invalid image type (based on header). Allowed types: {settings.ALLOWED_MIME_TYPES}")
+
+    # Robust check using python-magic by reading the start of the file
+    # Read a chunk of the file to determine its type
+    # SpooledTemporaryFile needs to be read carefully
+    try:
+        file_content_chunk = await file.read(2048) # Read first 2KB, should be enough for magic bytes
+        await file.seek(0) # Reset file pointer to the beginning for subsequent operations (like saving)
+        
+        true_mime_type = magic.from_buffer(file_content_chunk, mime=True)
+        
+        if true_mime_type not in settings.ALLOWED_MIME_TYPES:
+            raise HTTPException(status_code=400, detail=f"Invalid image type (based on content analysis: {true_mime_type}). Allowed types: {settings.ALLOWED_MIME_TYPES}")
+        
+        # If the client-provided type and server-verified type differ but both are allowed,
+        # prefer the server-verified one for storage/metadata.
+        # For now, we'll use the client's if it passed the initial check and content check passed.
+        # Or, we can update file.content_type if we want to use the server-verified one.
+        # Let's consider using the true_mime_type for the database record.
+        # For now, the initial check is primary, this is a secondary stronger check.
+
+    except Exception as e:
+        # Log this error, could be an issue with reading the file or python-magic itself
+        print(f"Error during magic number check: {e}")
+        raise HTTPException(status_code=500, detail="Could not verify file content.")
+
 
     # Check file size (more robust check on actual content length if possible)
     # file.file is a SpooledTemporaryFile. We can get its size.
@@ -84,9 +116,13 @@ async def upload_image(
         file.file.close()
 
     # Prepare data for database
+    # Use the server-verified mime_type if available and different, otherwise client's
+    # For simplicity, we'll stick to the client's file.content_type if it passed both checks.
+    # A more robust approach might be to use `true_mime_type` from the magic check.
+    # Let's update to use true_mime_type for the database.
     image_data = models.ImageCreate(
         filename=unique_filename, # Store the unique filename
-        mimetype=file.content_type,
+        mimetype=true_mime_type, # Use server-verified MIME type
         filesize=file_size,
         tags=tags_str.split(',') if tags_str else []
     )

@@ -1,13 +1,32 @@
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse # Added for custom rate limit response
 import asyncpg
 import redis.asyncio as redis
 import os
+from slowapi import Limiter, _rate_limit_exceeded_handler # Added slowapi
+from slowapi.util import get_remote_address # Changed to get_remote_address, will customize
+from slowapi.errors import RateLimitExceeded # Added
+from slowapi.middleware import SlowAPIMiddleware # Added
 
 from .core.config import settings
 # We will define db connection functions in db.py and import them or use dependencies
 
+# Custom key function to get IP from X-Real-IP or fallback to remote address
+def get_request_identifier(request: Request) -> str:
+    # Try to get the IP from X-Real-IP header
+    x_real_ip = request.headers.get("x-real-ip")
+    if x_real_ip:
+        return x_real_ip
+    # Fallback to the direct client address if header is not present
+    return get_remote_address(request)
+
+limiter = Limiter(key_func=get_request_identifier, default_limits=[settings.DEFAULT_RATE_LIMIT])
+
 app = FastAPI(title=settings.PROJECT_NAME)
+app.state.limiter = limiter # Add limiter to app state
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler) # Handle rate limit exceeded
+app.add_middleware(SlowAPIMiddleware) # Add SlowAPI middleware
 
 # Database and Redis connection pools will be stored in app.state
 # app.state.pg_pool = None

@@ -4,3 +4,5 @@ asyncpg
 redis[hiredis]
 python-multipart
 pydantic[email]
+slowapi
+python-magic

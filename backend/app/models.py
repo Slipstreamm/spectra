@@ -1,12 +1,12 @@
 # This file will contain Pydantic models for API request/response validation
 # and potentially ORM models if SQLAlchemy were to be used more extensively.
 
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, HttpUrl, constr, Field
 from typing import List, Optional
 from datetime import datetime
 
 class TagBase(BaseModel):
-    name: str
+    name: constr(strip_whitespace=True, to_lower=True, min_length=1, max_length=50)
 
 class TagCreate(TagBase):
     pass
@@ -23,7 +23,9 @@ class ImageBase(BaseModel):
     filesize: Optional[int] = None
 
 class ImageCreate(ImageBase):
-    tags: Optional[List[str]] = [] # Tags provided as strings during creation
+    # Ensure individual tags also conform to constraints, and limit the number of tags.
+    tags: Optional[List[constr(strip_whitespace=True, to_lower=True, min_length=1, max_length=50)]] = Field(default_factory=list, max_items=10)
+
 
 class Image(ImageBase):
     id: int

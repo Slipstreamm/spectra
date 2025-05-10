@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     # For constructing image URLs
     SERVER_HOST: AnyHttpUrl = "http://localhost:8000" # Base URL of the server
 
+    # Rate limiting
+    DEFAULT_RATE_LIMIT: str = "100/minute" # Default rate limit for general API access
+    UPLOAD_RATE_LIMIT: str = "1/minute" # Specific rate limit for uploads
+
     # Pydantic V2 way to load from .env file
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding='utf-8', extra='ignore')
 
