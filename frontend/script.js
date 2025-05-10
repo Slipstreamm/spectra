@@ -5,8 +5,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const uploadStatusDiv = document.getElementById('uploadStatus');
     const galleryContainer = document.getElementById('galleryContainer');
 
-    // Define API base URL - adjust if your FastAPI runs elsewhere or has a prefix
-    const API_BASE_URL = 'http://localhost:8000/api/v1'; // FastAPI runs on port 8000 with /api/v1 prefix
+    // Define API base URL - it's relative to the current host
+    const API_BASE_URL = '/api/v1';
 
     // Function to fetch and display images
     async function fetchImages() {

@@ -97,17 +97,6 @@ async def shutdown_event():
         # await app.state.redis_pool.disconnect() # if it were a client
         print("Redis connection pool resources released (if applicable).")
 
-
-@app.get("/")
-async def read_root(request: Request):
-    return {
-        "message": f"Welcome to {settings.PROJECT_NAME}",
-        "docs_url": request.url_for("swagger_ui_html"),
-        "redoc_url": request.url_for("redoc_html"),
-        "pg_pool_status": "Created" if hasattr(app.state, 'pg_pool') and app.state.pg_pool else "Not created",
-        "redis_pool_status": "Created" if hasattr(app.state, 'redis_pool') and app.state.redis_pool else "Not created",
-    }
-
 # Further imports and API routers will be added here.
 from .routers import images #, tags # Import tags router when created
 
