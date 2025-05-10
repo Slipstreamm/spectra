@@ -8,6 +8,7 @@ import asyncpg
 import redis.asyncio as redis_async # For type hinting
 from fastapi import (APIRouter, Depends, File, Form, HTTPException, Query,
                      UploadFile, Request)
+from pydantic import HttpUrl
 
 from .. import crud, models # Removed schemas, using models for Pydantic models
 from ..core.config import settings
@@ -51,7 +52,12 @@ async def upload_image(
 
     # Ensure uploads directory exists (it should be created on startup by main.py)
     # Construct absolute path for uploads_dir
-    project_root = Path(__file__).resolve().parent.parent.parent # spectra/
+    # __file__ is .../backend/app/routers/images.py
+    # .parent -> .../backend/app/routers
+    # .parent.parent -> .../backend/app
+    # .parent.parent.parent -> .../backend
+    # .parent.parent.parent.parent -> .../ (project root)
+    project_root = Path(__file__).resolve().parent.parent.parent.parent 
     uploads_abs_path = project_root / settings.UPLOADS_DIR
     if not uploads_abs_path.exists():
         # This should ideally not happen if startup event in main.py works
@@ -112,7 +118,7 @@ async def upload_image(
         # response_image = models.Image(**created_image_record, image_url=get_image_url(request, created_image_record['filename']))
         
         # If crud returns a models.Image instance (ideal):
-        created_image_record.image_url = get_image_url(request, created_image_record.filename)
+        created_image_record.image_url = HttpUrl(get_image_url(request, created_image_record.filename))
         return created_image_record
 
     except Exception as e:
@@ -144,7 +150,7 @@ async def list_images(
     
     response_images = []
     for img_model in images_data: # crud.get_images now returns list of models.Image
-        img_model.image_url = get_image_url(request, img_model.filename)
+        img_model.image_url = HttpUrl(get_image_url(request, img_model.filename))
         response_images.append(img_model)
 
     return models.PaginatedImages(limit=limit, offset=skip, total=total_count, data=response_images)
@@ -164,5 +170,5 @@ async def get_image_details(
     if image_model is None:
         raise HTTPException(status_code=404, detail="Image not found")
     
-    image_model.image_url = get_image_url(request, image_model.filename)
+    image_model.image_url = HttpUrl(get_image_url(request, image_model.filename))
     return image_model
