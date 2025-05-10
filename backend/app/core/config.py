@@ -39,7 +39,7 @@ class Settings(BaseSettings):
                 username=self.POSTGRES_USER,
                 password=self.POSTGRES_PASSWORD,
                 host=self.POSTGRES_SERVER,
-                path=f"/{self.POSTGRES_DB}",
+                path=self.POSTGRES_DB,
             )
         if not self.REDIS_URL:
             redis_path = f":{self.REDIS_PASSWORD}@" if self.REDIS_PASSWORD else ""
