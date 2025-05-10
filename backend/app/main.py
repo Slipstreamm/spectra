@@ -73,6 +73,12 @@ async def startup_event():
     app.mount(f"{settings.API_V1_STR}/static/uploads", StaticFiles(directory=uploads_abs_path, html=False), name="static_uploads")
     print(f"Static files mounted at {settings.API_V1_STR}/static/uploads, serving from {uploads_abs_path}")
 
+    # Mount static files for frontend
+    # project_root is already defined above in this function
+    frontend_abs_path = os.path.join(project_root, "frontend")
+    app.mount("/", StaticFiles(directory=frontend_abs_path, html=True), name="static_frontend")
+    print(f"Static frontend mounted at /, serving from {frontend_abs_path}")
+
 
 @app.on_event("shutdown")
 async def shutdown_event():
