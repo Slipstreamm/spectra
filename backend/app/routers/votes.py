@@ -4,14 +4,15 @@ import asyncpg
 import redis.asyncio as redis_async
 
 from .. import crud, models
-from ..core import security
+# from ..core import security # No longer needed for get_current_active_user here
+from .auth import get_current_active_user # Import from auth router
 from ..db import get_db_connection, get_redis_connection
 from ..main import limiter
 
 router = APIRouter(
     prefix="/votes",
     tags=["votes"],
-    dependencies=[Depends(security.get_current_active_user)], # Voting generally requires auth
+    dependencies=[Depends(get_current_active_user)], # Voting generally requires auth, use imported dependency
 )
 
 @router.post("/", response_model=Optional[models.Vote], status_code=200) # Status 200 for update/delete, 201 for new
@@ -19,7 +20,7 @@ async def cast_or_update_vote(
     vote_in: models.VoteCreate,
     db: asyncpg.Connection = Depends(get_db_connection),
     redis: redis_async.Redis = Depends(get_redis_connection),
-    current_user: models.User = Depends(security.get_current_active_user),
+    current_user: models.User = Depends(get_current_active_user), # Use imported dependency
 ):
     """
     Cast, update, or remove a vote on a post or a comment.

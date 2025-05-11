@@ -14,7 +14,8 @@ from pydantic import HttpUrl
 
 from .. import crud, models
 from ..core.config import settings
-from ..core import security # For get_current_active_user
+# from ..core import security # No longer needed for get_current_active_user here
+from .auth import get_current_active_user # Import from auth router
 from ..db import get_db_connection, get_redis_connection
 from ..main import limiter
 
@@ -42,7 +43,7 @@ async def upload_post(
     tags_str: Optional[str] = Form(None),
     db: asyncpg.Connection = Depends(get_db_connection),
     redis: redis_async.Redis = Depends(get_redis_connection),
-    current_user: models.User = Depends(security.get_current_active_user)
+    current_user: models.User = Depends(get_current_active_user) # Use imported dependency
 ):
     """
     Upload an image as part of a new post, with optional title, description, and tags.
@@ -145,10 +146,10 @@ async def list_posts(
         
         uploader_frontend = None
         if post_model.uploader:
-             uploader_frontend = models.UserBase(
+            uploader_frontend = models.UserBase(
                 email=post_model.uploader.email,
-                username=post_model.uploader.username
-                # id, is_active, is_superuser, created_at are not in UserBase
+                username=post_model.uploader.username,
+                role=post_model.uploader.role # Add role to UserBase if it's part of Post.uploader
             )
 
         frontend_posts.append(

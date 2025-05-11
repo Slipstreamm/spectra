@@ -4,7 +4,8 @@ import asyncpg
 import redis.asyncio as redis_async
 
 from .. import crud, models
-from ..core import security
+# from ..core import security # No longer needed for get_current_active_user here
+from .auth import get_current_active_user # Import from auth router
 from ..db import get_db_connection, get_redis_connection
 from ..main import limiter
 
@@ -19,7 +20,7 @@ async def create_new_comment( # Renamed for clarity
     comment: models.CommentCreate,
     db: asyncpg.Connection = Depends(get_db_connection),
     redis: redis_async.Redis = Depends(get_redis_connection),
-    current_user: models.User = Depends(security.get_current_active_user),
+    current_user: models.User = Depends(get_current_active_user), # Use imported dependency
 ):
     """
     Create a new comment on a specific post.
