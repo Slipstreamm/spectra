@@ -113,9 +113,33 @@ header {
     background-color: var(--button-hover-bg-color);
 }
 
-.user-nav a {
-    margin-left: 1rem;
+.main-nav {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
 }
+
+.main-nav a {
+    padding: 0.5rem;
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
+}
+
+.main-nav a:hover, .main-nav a.active {
+    background-color: var(--button-bg-color);
+    text-decoration: none;
+}
+
+.user-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem; /* Reduced gap for tighter packing of theme toggle and links */
+}
+
+.user-actions .user-link {
+    margin-left: 0.5rem; /* Spacing between login/register links */
+}
+
 
 /* Main Content Styles */
 main {
