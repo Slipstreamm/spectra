@@ -108,6 +108,7 @@ async def delete_image_admin(
 # Endpoint to list all images (paginated) - for admin use
 @router.get("/images", response_model=models.PaginatedImages, tags=["Admin"])
 async def list_all_images_admin(
+    request: Request, # Added request parameter
     current_user: Annotated[models.User, Depends(get_current_active_superuser)],
     db: asyncpg.Connection = Depends(get_db_connection),
     redis: redis_async.Redis = Depends(get_redis_connection),
