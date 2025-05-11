@@ -64,7 +64,7 @@ img {
 /* Header Styles */
 header {
     background-color: var(--header-bg-color);
-    padding: 1rem 2rem;
+    padding: 1rem 0.5rem; /* Reduced horizontal padding */
     border-bottom: 1px solid var(--border-color);
     position: sticky;
     top: 0;
@@ -144,9 +144,9 @@ header {
 /* Main Content Styles */
 .main-container {
     display: flex;
-    max-width: 1400px; /* Adjusted for sidebar */
+    max-width: 100%; /* Allow full width */
     margin: 0 auto;
-    padding: 0.5rem; /* Further reduced padding for main container */
+    padding: 0.5rem 0.5rem; /* Keep vertical padding, horizontal padding applied to sidebar/content-area */
     gap: 0.5rem; /* Reduced gap between sidebar and content */
 }
 
