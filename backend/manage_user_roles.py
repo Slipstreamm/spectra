@@ -27,6 +27,24 @@ async def run_script_operations(
 
     conn = None
     try:
+        # Check for essential database settings before attempting to connect
+        required_db_settings = [
+            "POSTGRES_USER",
+            "POSTGRES_PASSWORD",
+            "POSTGRES_DB",
+            "POSTGRES_SERVER",
+            "POSTGRES_PORT"
+        ]
+        missing_settings = [
+            attr for attr in required_db_settings if not hasattr(script_settings, attr) or not getattr(script_settings, attr)
+        ]
+
+        if missing_settings:
+            print(f"Error: Missing essential database configuration: {', '.join(missing_settings)}.")
+            print("Please ensure these are set in your .env file, system environment, or a correctly formatted config.toml.")
+            # The user's feedback already indicated a TOML loading issue, so this reinforces checking .env.
+            sys.exit(1)
+
         conn = await asyncpg.connect(
             user=script_settings.POSTGRES_USER,
             password=script_settings.POSTGRES_PASSWORD.get_secret_value(),
