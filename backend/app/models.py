@@ -30,6 +30,16 @@ class Tag(TagBase):
 class TagWithCount(Tag):
     post_count: int
 
+# User models
+
+# Publicly viewable user information (no email)
+class UserPublic(BaseModel):
+    id: int
+    username: str = Field(..., min_length=3, max_length=50, example="display_user")
+    role: UserRole = Field(default=UserRole.user, example=UserRole.user)
+
+    model_config = {"from_attributes": True}
+
 # User models (essential for posts, comments, votes)
 class UserBase(BaseModel):
     email: str = Field(..., example="admin@example.com")
@@ -86,7 +96,7 @@ class Post(PostBase):
     filepath: str # Path on disk, or relative path
     uploaded_at: datetime
     uploader_id: Optional[int] = None
-    uploader: Optional[User] = None # To embed uploader info
+    uploader: Optional[UserPublic] = None # To embed uploader info (publicly safe)
     tags: List[Tag] = []
     image_url: Optional[HttpUrl] = None
     thumbnail_url: Optional[HttpUrl] = None
@@ -111,7 +121,7 @@ class PostForFrontend(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     uploaded_at: datetime
-    uploader: Optional[UserBase] = None # Display basic user info
+    uploader: Optional[UserPublic] = None # Display basic user info (publicly safe)
     tags: List[FrontendTag] = []
     image_url: HttpUrl
     thumbnail_url: Optional[HttpUrl] = None
@@ -143,7 +153,7 @@ class Comment(CommentBase):
     id: int
     post_id: int
     user_id: int
-    user: Optional[UserBase] = None # Embed basic user info
+    user: Optional[UserPublic] = None # Embed basic user info (publicly safe)
     parent_comment_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
@@ -191,7 +201,7 @@ class Vote(VoteBase):
     post_id: Optional[int] = None
     comment_id: Optional[int] = None
     created_at: datetime
-    user: Optional[UserBase] = None # Embed basic user info for context if needed
+    user: Optional[UserPublic] = None # Embed basic user info for context if needed (publicly safe)
 
     model_config = {"from_attributes": True}
 

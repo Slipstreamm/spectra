@@ -109,14 +109,14 @@ async def create_post_with_tags(
                     created_post_id, tag_obj.id
                 )
 
-        uploader_info_record = await db.fetchrow("SELECT * FROM users WHERE id = $1", uploader_id)
-        uploader_info = models.User(**uploader_info_record) if uploader_info_record else None
+        uploader_info_record = await db.fetchrow("SELECT id, username, role FROM users WHERE id = $1", uploader_id) # Fetch only needed fields for UserPublic
+        uploader_public_info = models.UserPublic(**uploader_info_record) if uploader_info_record else None
 
         response_post = models.Post(
             id=post_record['id'], filename=post_record['filename'], filepath=post_record['filepath'],
             mimetype=post_record['mimetype'], filesize=post_record['filesize'], title=post_record['title'],
             description=post_record['description'], uploader_id=post_record['uploader_id'],
-            uploader=uploader_info, uploaded_at=post_record['uploaded_at'], tags=processed_tags,
+            uploader=uploader_public_info, uploaded_at=post_record['uploaded_at'], tags=processed_tags,
             image_url=None, thumbnail_url=None, comment_count=0, upvotes=0, downvotes=0
         )
 
@@ -134,17 +134,18 @@ async def get_post(db: asyncpg.Connection, redis: redis_async.Redis, post_id: in
             post_dict = json.loads(cached_post_json)
             post_dict['tags'] = _parse_tags_from_source(post_dict.get('tags', []))
             if post_dict.get('uploader') and isinstance(post_dict['uploader'], dict):
-                 post_dict['uploader'] = models.User(**post_dict['uploader'])
+                 # Ensure it's parsed as UserPublic if that's what Post expects
+                 post_dict['uploader'] = models.UserPublic(**post_dict['uploader'])
             return models.Post(**post_dict)
-        except (json.JSONDecodeError, TypeError) as e:
+        except (json.JSONDecodeError, TypeError, KeyError) as e: # Added KeyError for safety
             print(f"Error decoding/parsing cached post for ID: {post_id}. Error: {e}. Fetching from DB.")
 
     query = """
         SELECT
             p.id, p.filename, p.filepath, p.mimetype, p.filesize, p.title, p.description,
             p.uploaded_at, p.uploader_id,
-            u.username AS uploader_username, u.email AS uploader_email, u.role AS uploader_role, u.is_active AS uploader_is_active,
-            u.created_at AS uploader_created_at, -- Removed uploader_is_superuser
+            u.id AS uploader_user_id, u.username AS uploader_username, u.role AS uploader_role, -- Removed email, added uploader_user_id
+            -- u.is_active AS uploader_is_active, u.created_at AS uploader_created_at, -- Not needed for UserPublic
             COALESCE((SELECT json_agg(json_build_object('id', t.id, 'name', t.name) ORDER BY t.name)
                       FROM tags t JOIN post_tags pt ON t.id = pt.tag_id WHERE pt.post_id = p.id), '[]'::json) AS tags,
             (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count,
@@ -158,19 +159,18 @@ async def get_post(db: asyncpg.Connection, redis: redis_async.Redis, post_id: in
     if not post_record: return None
 
     parsed_db_tags = _parse_tags_from_source(post_record['tags'])
-    uploader_data = None
-    if post_record['uploader_id']:
-        uploader_data = models.User(
-            id=post_record['uploader_id'], username=post_record['uploader_username'], email=post_record['uploader_email'],
-            role=post_record['uploader_role'], is_active=post_record['uploader_is_active'],
-            created_at=post_record['uploader_created_at']
-            # is_superuser will be default False in User model, or derived if logic is added to model
+    uploader_public_data = None
+    if post_record['uploader_id'] and post_record['uploader_user_id']: # Ensure uploader_user_id is present
+        uploader_public_data = models.UserPublic(
+            id=post_record['uploader_user_id'], # Use uploader_user_id from query
+            username=post_record['uploader_username'],
+            role=post_record['uploader_role']
         )
     db_post_model = models.Post(
         id=post_record['id'], filename=post_record['filename'], filepath=post_record['filepath'],
         mimetype=post_record['mimetype'], filesize=post_record['filesize'], title=post_record['title'],
         description=post_record['description'], uploaded_at=post_record['uploaded_at'],
-        uploader_id=post_record['uploader_id'], uploader=uploader_data, tags=parsed_db_tags,
+        uploader_id=post_record['uploader_id'], uploader=uploader_public_data, tags=parsed_db_tags,
         image_url=None, thumbnail_url=None, comment_count=post_record['comment_count'],
         upvotes=post_record['upvotes'], downvotes=post_record['downvotes']
     )
@@ -193,18 +193,19 @@ async def get_posts(
             for post_dict in posts_dict_list:
                 post_dict['tags'] = _parse_tags_from_source(post_dict.get('tags', []))
                 if post_dict.get('uploader') and isinstance(post_dict['uploader'], dict):
-                    post_dict['uploader'] = models.User(**post_dict['uploader'])
+                    # Ensure it's parsed as UserPublic if that's what Post expects
+                    post_dict['uploader'] = models.UserPublic(**post_dict['uploader'])
                 response_posts.append(models.Post(**post_dict))
             return response_posts
-        except (json.JSONDecodeError, TypeError) as e:
+        except (json.JSONDecodeError, TypeError, KeyError) as e: # Added KeyError for safety
             print(f"Error decoding/parsing cached post list for key: {cache_key}. Error: {e}. Fetching from DB.")
 
     base_query = """
         SELECT
             p.id, p.filename, p.filepath, p.mimetype, p.filesize, p.title, p.description,
             p.uploaded_at, p.uploader_id,
-            u.username AS uploader_username, u.email AS uploader_email, u.role AS uploader_role, u.is_active AS uploader_is_active,
-            u.created_at AS uploader_created_at, -- Removed uploader_is_superuser
+            u.id AS uploader_user_id, u.username AS uploader_username, u.role AS uploader_role, -- Removed email, added uploader_user_id
+            -- u.is_active AS uploader_is_active, u.created_at AS uploader_created_at, -- Not needed for UserPublic
             COALESCE((SELECT json_agg(json_build_object('id', t.id, 'name', t.name) ORDER BY t.name)
                       FROM tags t JOIN post_tags pt ON t.id = pt.tag_id WHERE pt.post_id = p.id), '[]'::json) AS tags,
             (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count,
@@ -251,19 +252,18 @@ async def get_posts(
     posts_list = []
     for record in post_records:
         parsed_db_tags = _parse_tags_from_source(record['tags'])
-        uploader_data = None
-        if record['uploader_id']:
-            uploader_data = models.User(
-                id=record['uploader_id'], username=record['uploader_username'], email=record['uploader_email'],
-                role=record['uploader_role'], is_active=record['uploader_is_active'],
-                created_at=record['uploader_created_at']
-                # is_superuser will be default False in User model, or derived
+        uploader_public_data = None
+        if record['uploader_id'] and record['uploader_user_id']: # Ensure uploader_user_id is present
+            uploader_public_data = models.UserPublic(
+                id=record['uploader_user_id'], # Use uploader_user_id from query
+                username=record['uploader_username'],
+                role=record['uploader_role']
             )
         posts_list.append(models.Post(
             id=record['id'], filename=record['filename'], filepath=record['filepath'],
             mimetype=record['mimetype'], filesize=record['filesize'], title=record['title'],
             description=record['description'], uploaded_at=record['uploaded_at'],
-            uploader_id=record['uploader_id'], uploader=uploader_data, tags=parsed_db_tags,
+            uploader_id=record['uploader_id'], uploader=uploader_public_data, tags=parsed_db_tags,
             image_url=None, thumbnail_url=None, comment_count=record['comment_count'],
             upvotes=record['upvotes'], downvotes=record['downvotes']
         ))
@@ -424,11 +424,12 @@ async def create_comment(db: asyncpg.Connection, redis: redis_async.Redis, comme
         if not comment_record:
             raise Exception("Failed to create comment.")
 
-        # Fetch the user who made the comment
-        commenter_user = await get_user(db, user_id) # get_user returns UserInDB
-        if not commenter_user:
-            # This should ideally not happen if user_id is valid
+        # Fetch the user who made the comment (only fields needed for UserPublic)
+        commenter_user_record = await db.fetchrow("SELECT id, username, role FROM users WHERE id = $1", user_id)
+        if not commenter_user_record:
             raise Exception("Commenter user not found.")
+
+        commenter_public_info = models.UserPublic(**commenter_user_record)
 
         # Invalidate post cache as comment_count has changed
         await redis.delete(f"{POST_CACHE_PREFIX}{post_id}")
@@ -437,26 +438,19 @@ async def create_comment(db: asyncpg.Connection, redis: redis_async.Redis, comme
         if comments_list_cache_keys:
             await redis.delete(*comments_list_cache_keys)
             print(f"Invalidated comments list cache for post {post_id} due to new comment.")
-        # Potentially invalidate post list caches if they show comment counts directly
-        # For simplicity, we might rely on TTL or broader invalidation for list caches for now.
 
         return models.Comment(
             id=comment_record['id'],
             post_id=comment_record['post_id'],
             user_id=comment_record['user_id'],
-            user=models.UserBase( # Convert UserInDB to UserBase for embedding
-                id=commenter_user.id,
-                email=commenter_user.email,
-                username=commenter_user.username,
-                # is_active and is_superuser are not in UserBase by default in models.Comment
-            ),
+            user=commenter_public_info, # Use UserPublic
             parent_comment_id=comment_record['parent_comment_id'],
             content=comment_record['content'],
             created_at=comment_record['created_at'],
             updated_at=comment_record['updated_at'],
-            replies=[], # Replies would be fetched separately if needed for deep nesting
-            upvotes=0, # Initialize, vote implementation is separate
-            downvotes=0 # Initialize
+            replies=[],
+            upvotes=0,
+            downvotes=0
         )
 
 async def get_comments_for_post(db: asyncpg.Connection, redis: redis_async.Redis, post_id: int, skip: int = 0, limit: int = 10) -> List[models.Comment]:
@@ -469,46 +463,41 @@ async def get_comments_for_post(db: asyncpg.Connection, redis: redis_async.Redis
             response_comments = []
             for comm_dict in comments_dict_list:
                 if comm_dict.get('user') and isinstance(comm_dict['user'], dict):
-                    comm_dict['user'] = models.UserBase(**comm_dict['user'])
-                # Assuming replies are handled separately or not deeply nested in this call
-                comm_dict['replies'] = [] # Placeholder if replies were cached differently
+                    # Ensure it's parsed as UserPublic
+                    comm_dict['user'] = models.UserPublic(**comm_dict['user'])
+                comm_dict['replies'] = []
                 response_comments.append(models.Comment(**comm_dict))
             print(f"Cache HIT for comments list: {cache_key}")
             return response_comments
-        except (json.JSONDecodeError, TypeError) as e:
+        except (json.JSONDecodeError, TypeError, KeyError) as e: # Added KeyError for safety
             print(f"Error decoding/parsing cached comments for post {post_id}. Error: {e}. Fetching from DB.")
 
     query = """
         SELECT
             c.id, c.post_id, c.user_id, c.parent_comment_id, c.content, c.created_at, c.updated_at,
-            u.username AS user_username, u.email AS user_email, -- u.is_active, u.is_superuser, u.created_at AS user_created_at,
+            u.id AS comment_user_id, u.username AS user_username, u.role AS user_role, -- Removed email, added comment_user_id and role
             (SELECT COUNT(*) FROM votes v WHERE v.comment_id = c.id AND v.vote_type = 1) AS upvotes,
             (SELECT COUNT(*) FROM votes v WHERE v.comment_id = c.id AND v.vote_type = -1) AS downvotes
-            -- Replies need to be handled, potentially in a separate query or by recursive CTE if DB supports well
         FROM comments c
         JOIN users u ON c.user_id = u.id
-        WHERE c.post_id = $1 AND c.parent_comment_id IS NULL -- Fetch only top-level comments for now
-        ORDER BY c.created_at ASC -- Or DESC depending on desired order
+        WHERE c.post_id = $1 AND c.parent_comment_id IS NULL
+        ORDER BY c.created_at ASC
         LIMIT $2 OFFSET $3;
     """
-    # For threaded comments, the query would be more complex (e.g., recursive CTE)
-    # or handled by multiple queries client-side/service-side.
-    # This example fetches top-level comments and their direct user info.
-
     comment_records = await db.fetch(query, post_id, limit, skip)
 
     comments_list = []
     for record in comment_records:
-        commenter_user_base = models.UserBase(
-            # id=record['user_id'], # UserBase doesn't have id by default in models.Comment.user
-            email=record['user_email'],
-            username=record['user_username']
+        commenter_public_info = models.UserPublic(
+            id=record['comment_user_id'], # Use comment_user_id from query
+            username=record['user_username'],
+            role=record['user_role']
         )
         comments_list.append(models.Comment(
             id=record['id'],
             post_id=record['post_id'],
             user_id=record['user_id'],
-            user=commenter_user_base,
+            user=commenter_public_info,
             parent_comment_id=record['parent_comment_id'],
             content=record['content'],
             created_at=record['created_at'],
@@ -603,12 +592,9 @@ async def cast_vote(db: asyncpg.Connection, redis: redis_async.Redis, vote_data:
         if not created_vote_record: # Case where vote was deleted (unvoted)
             return None
 
-        # Fetch user details for the vote response
-        voter_user = await get_user(db, created_vote_record['user_id'])
-        voter_user_base = models.UserBase(
-            email=voter_user.email,
-            username=voter_user.username
-        ) if voter_user else None
+        # Fetch user details for the vote response (only fields needed for UserPublic)
+        voter_user_record = await db.fetchrow("SELECT id, username, role FROM users WHERE id = $1", created_vote_record['user_id'])
+        voter_public_info = models.UserPublic(**voter_user_record) if voter_user_record else None
 
         return models.Vote(
             id=created_vote_record['id'],
@@ -617,7 +603,7 @@ async def cast_vote(db: asyncpg.Connection, redis: redis_async.Redis, vote_data:
             comment_id=created_vote_record['comment_id'],
             vote_type=created_vote_record['vote_type'],
             created_at=created_vote_record['created_at'],
-            user=voter_user_base
+            user=voter_public_info # Use UserPublic
         )
 
 async def update_user_role(db: asyncpg.Connection, user_id: int, new_role: models.UserRole) -> Optional[models.User]:

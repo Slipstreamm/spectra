@@ -157,13 +157,9 @@ async def list_posts(
         # Transform tags from List[models.Tag] to List[models.FrontendTag]
         frontend_tags = [models.FrontendTag(name=tag.name) for tag in post_model.tags]
 
-        uploader_frontend = None
-        if post_model.uploader:
-            uploader_frontend = models.UserBase(
-                email=post_model.uploader.email,
-                username=post_model.uploader.username,
-                role=post_model.uploader.role # Add role to UserBase if it's part of Post.uploader
-            )
+        # post_model.uploader is already Optional[UserPublic]
+        # PostForFrontend.uploader expects Optional[UserPublic]
+        # No transformation needed here, directly use post_model.uploader
 
         frontend_posts.append(
             models.PostForFrontend(
@@ -172,7 +168,7 @@ async def list_posts(
                 title=post_model.title,
                 description=post_model.description,
                 uploaded_at=post_model.uploaded_at,
-                uploader=uploader_frontend,
+                uploader=post_model.uploader, # Directly assign UserPublic instance
                 tags=frontend_tags,
                 image_url=image_url,
                 thumbnail_url=thumbnail_url,
