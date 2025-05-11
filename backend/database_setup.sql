@@ -47,6 +47,18 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Schema migration for existing 'users' table: Add 'role' if not exists, drop 'is_superuser' if exists
+-- These commands are idempotent and safe to run multiple times.
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='role') THEN
+        ALTER TABLE users ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'user';
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='is_superuser') THEN
+        ALTER TABLE users DROP COLUMN is_superuser;
+    END IF;
+END $$;
+
 -- Table for storing comments on posts
 CREATE TABLE IF NOT EXISTS comments (
     id SERIAL PRIMARY KEY,
