@@ -1,100 +1,206 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const uploadForm = document.getElementById('uploadForm');
-    const imageFileIn = document.getElementById('imageFile');
-    const imageTagsIn = document.getElementById('imageTags');
-    const uploadStatusDiv = document.getElementById('uploadStatus');
+    // DOM Elements
     const galleryContainer = document.getElementById('galleryContainer');
+    const paginationControls = document.getElementById('paginationControls');
+    const tagSearchInput = document.getElementById('tagSearchInput');
+    const searchButton = document.getElementById('searchButton');
+    const themeToggleButton = document.getElementById('themeToggle');
+    const imageModal = document.getElementById('imageModal');
+    const modalImage = document.getElementById('modalImage');
+    const modalFilename = document.getElementById('modalFilename');
+    const modalUploadedAt = document.getElementById('modalUploadedAt');
+    const modalTagsContainer = document.getElementById('modalTags');
+    const closeModalButton = imageModal.querySelector('.close-button');
 
-    // Define API base URL - it's relative to the current host
-    const API_BASE_URL = '/api/v1';
+    // API and App State
+    const API_BASE_URL = '/api/v1'; // Assuming backend is served from the same host
+    const IMAGES_PER_PAGE = 20; // Or get from backend if configurable
+    let currentPage = 1;
+    let currentTags = '';
 
-    // Function to fetch and display images
-    async function fetchImages() {
+    // --- Theme Toggling ---
+    function applyTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        localStorage.setItem('spectraTheme', theme);
+        // Update theme-color meta tag if needed (more complex for dynamic themes)
+        // document.querySelector('meta[name="theme-color"]').setAttribute('content', theme === 'dark' ? '#333333' : '#ffffff');
+    }
+
+    themeToggleButton.addEventListener('click', () => {
+        const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        applyTheme(newTheme);
+    });
+
+    // Load saved theme or default to dark
+    const savedTheme = localStorage.getItem('spectraTheme');
+    if (savedTheme) {
+        applyTheme(savedTheme);
+    } else {
+        applyTheme('dark'); // Default theme
+    }
+
+    // --- Image Fetching and Rendering ---
+    async function fetchImages(tags = '', page = 1) {
+        currentTags = tags;
+        currentPage = page;
+        galleryContainer.innerHTML = '<p class="status-message">Loading images...</p>';
+        paginationControls.innerHTML = ''; // Clear old pagination
+
+        let queryParams = `?page=${page}&limit=${IMAGES_PER_PAGE}`;
+        if (tags) {
+            queryParams += `&tags=${encodeURIComponent(tags.trim().split(/\s+/).join(','))}`; // Split by space, join by comma for API
+        }
+
         try {
-            // Adjust the endpoint if your API has a version prefix like /api/v1
-            const response = await fetch(`${API_BASE_URL}/images/`);
+            const response = await fetch(`${API_BASE_URL}/images/${queryParams}`);
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
-            const result = await response.json(); // Expecting PaginatedImages model
-            
-            galleryContainer.innerHTML = ''; // Clear previous content
+            const result = await response.json(); // Expecting { data: [], total_items: N, total_pages: N, current_page: N }
 
-            if (result.data && result.data.length > 0) {
-                result.data.forEach(image => {
-                    const imageDiv = document.createElement('div');
-                    imageDiv.className = 'gallery-item';
+            renderGallery(result.data || []);
+            renderPagination(result.total_pages || 0, result.current_page || 1);
 
-                    const imgElement = document.createElement('img');
-                    // Use image.image_url if populated by backend, otherwise construct from filepath
-                    imgElement.src = image.image_url || `${API_BASE_URL}/static/uploads/${image.filename}`; // Adjust if API serves static files differently
-                    imgElement.alt = image.filename;
-
-                    const tagsDiv = document.createElement('div');
-                    tagsDiv.className = 'tags';
-                    tagsDiv.textContent = `Tags: ${image.tags.map(tag => tag.name).join(', ') || 'None'}`;
-                    
-                    const detailsDiv = document.createElement('div');
-                    detailsDiv.className = 'details';
-                    detailsDiv.innerHTML = `
-                        <p>Filename: ${image.filename}</p>
-                        <p>Uploaded: ${new Date(image.uploaded_at).toLocaleString()}</p>
-                    `;
-
-                    imageDiv.appendChild(imgElement);
-                    imageDiv.appendChild(tagsDiv);
-                    imageDiv.appendChild(detailsDiv);
-                    galleryContainer.appendChild(imageDiv);
-                });
-            } else {
-                galleryContainer.innerHTML = '<p>No images found.</p>';
-            }
         } catch (error) {
             console.error('Error fetching images:', error);
-            galleryContainer.innerHTML = `<p>Error loading images: ${error.message}</p>`;
+            galleryContainer.innerHTML = `<p class="status-message">Error loading images: ${error.message}</p>`;
         }
     }
 
-    // Handle form submission
-    if (uploadForm) {
-        uploadForm.addEventListener('submit', async (event) => {
-            event.preventDefault();
-            uploadStatusDiv.textContent = 'Uploading...';
+    function renderGallery(images) {
+        galleryContainer.innerHTML = ''; // Clear previous content
+        if (images.length === 0) {
+            galleryContainer.innerHTML = '<p class="status-message">No images found for the current filter.</p>';
+            return;
+        }
 
-            const formData = new FormData();
-            formData.append('file', imageFileIn.files[0]);
-            
-            // Tags are sent as a comma-separated string in a form field,
-            // which FastAPI can then parse.
-            // Or, you can send it as 'tags' multiple times if your backend expects a list.
-            // For simplicity, sending as a single string that the backend splits.
-            formData.append('tags_str', imageTagsIn.value);
+        images.forEach(image => {
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'gallery-item';
+            itemDiv.addEventListener('click', () => openModal(image));
 
+            const imgElement = document.createElement('img');
+            imgElement.src = image.thumbnail_url || image.image_url || `${API_BASE_URL}/static/uploads/${image.filename}`; // Prefer thumbnail
+            imgElement.alt = image.filename;
+            imgElement.loading = 'lazy'; // Lazy load images
 
-            try {
-                // Adjust the endpoint if your API has a version prefix like /api/v1
-                const response = await fetch(`${API_BASE_URL}/upload/`, {
-                    method: 'POST',
-                    body: formData,
-                    // 'Content-Type': 'multipart/form-data' is automatically set by browser for FormData
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'gallery-item-info';
+
+            const tagsDiv = document.createElement('div');
+            tagsDiv.className = 'tags';
+            if (image.tags && image.tags.length > 0) {
+                image.tags.slice(0, 3).forEach(tag => { // Show a few tags
+                    const tagSpan = document.createElement('span');
+                    tagSpan.textContent = tag.name;
+                    tagsDiv.appendChild(tagSpan);
                 });
-
-                const result = await response.json();
-
-                if (response.ok) {
-                    uploadStatusDiv.textContent = `Upload successful! Image ID: ${result.id} (${result.filename})`;
-                    uploadForm.reset(); // Clear the form
-                    fetchImages(); // Refresh gallery
-                } else {
-                    uploadStatusDiv.textContent = `Upload failed: ${result.detail || response.statusText}`;
+                if (image.tags.length > 3) {
+                    const moreSpan = document.createElement('span');
+                    moreSpan.textContent = `+${image.tags.length - 3}`;
+                    tagsDiv.appendChild(moreSpan);
                 }
-            } catch (error) {
-                console.error('Error uploading image:', error);
-                uploadStatusDiv.textContent = `Upload error: ${error.message}`;
+            } else {
+                tagsDiv.textContent = 'No tags';
             }
+            
+            infoDiv.appendChild(tagsDiv);
+            itemDiv.appendChild(imgElement);
+            itemDiv.appendChild(infoDiv);
+            galleryContainer.appendChild(itemDiv);
         });
     }
 
-    // Initial load of images
-    fetchImages();
+    function renderPagination(totalPages, page) {
+        paginationControls.innerHTML = '';
+        if (totalPages <= 1) return;
+
+        const prevButton = document.createElement('button');
+        prevButton.id = 'prevPage';
+        prevButton.textContent = 'Previous';
+        prevButton.disabled = page <= 1;
+        prevButton.addEventListener('click', () => fetchImages(currentTags, page - 1));
+        paginationControls.appendChild(prevButton);
+
+        const pageInfo = document.createElement('span');
+        pageInfo.className = 'current-page';
+        pageInfo.textContent = `Page ${page} of ${totalPages}`;
+        paginationControls.appendChild(pageInfo);
+
+        const nextButton = document.createElement('button');
+        nextButton.id = 'nextPage';
+        nextButton.textContent = 'Next';
+        nextButton.disabled = page >= totalPages;
+        nextButton.addEventListener('click', () => fetchImages(currentTags, page + 1));
+        paginationControls.appendChild(nextButton);
+    }
+
+    // --- Modal Logic ---
+    function openModal(image) {
+        modalImage.src = image.image_url || `${API_BASE_URL}/static/uploads/${image.filename}`;
+        modalFilename.textContent = image.filename;
+        modalUploadedAt.textContent = new Date(image.uploaded_at).toLocaleString();
+        
+        modalTagsContainer.innerHTML = '';
+        if (image.tags && image.tags.length > 0) {
+            image.tags.forEach(tag => {
+                const tagSpan = document.createElement('span');
+                tagSpan.textContent = tag.name;
+                tagSpan.addEventListener('click', () => {
+                    tagSearchInput.value = tag.name; // Set search to this tag
+                    handleSearch();
+                    closeModal();
+                });
+                modalTagsContainer.appendChild(tagSpan);
+            });
+        } else {
+            modalTagsContainer.textContent = 'None';
+        }
+        imageModal.style.display = 'block';
+    }
+
+    function closeModal() {
+        imageModal.style.display = 'none';
+        modalImage.src = ''; // Clear image to free memory
+    }
+
+    closeModalButton.addEventListener('click', closeModal);
+    window.addEventListener('click', (event) => { // Close if clicked outside modal content
+        if (event.target === imageModal) {
+            closeModal();
+        }
+    });
+    window.addEventListener('keydown', (event) => { // Close with Escape key
+        if (event.key === 'Escape' && imageModal.style.display === 'block') {
+            closeModal();
+        }
+    });
+
+    // --- Search Logic ---
+    function handleSearch() {
+        const tags = tagSearchInput.value.trim();
+        fetchImages(tags, 1); // Reset to page 1 for new search
+    }
+
+    searchButton.addEventListener('click', handleSearch);
+    tagSearchInput.addEventListener('keypress', (event) => {
+        if (event.key === 'Enter') {
+            handleSearch();
+        }
+    });
+    
+    // --- Initial Load ---
+    // Check for tags in URL query params (e.g., ?tags=nature,sky)
+    const urlParams = new URLSearchParams(window.location.search);
+    const initialTagsFromURL = urlParams.get('tags');
+    if (initialTagsFromURL) {
+        tagSearchInput.value = initialTagsFromURL.replace(/,/g, ' '); // Convert comma to space for input
+        fetchImages(tagSearchInput.value, 1);
+    } else {
+        fetchImages('', 1); // Load all images on page 1 initially
+    }
+
+    // The old upload form logic is removed as per the new design focus.
+    // If upload functionality is needed on this page, it would need to be re-integrated.
 });
