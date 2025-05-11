@@ -7,8 +7,8 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 
 from .config import settings
-from ... import crud, models # Adjusted import for crud and models
-from ...db import get_db_connection # For database dependency
+from .. import crud, models # Corrected relative import
+from ..db import get_db_connection # Corrected relative import
 import asyncpg # For type hinting
 
 # OAuth2PasswordBearer scheme
