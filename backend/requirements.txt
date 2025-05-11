@@ -8,6 +8,6 @@ pydantic-settings # For BaseSettings, good practice to specify
 slowapi
 python-magic
 passlib[bcrypt]
-bcrypt
+bcrypt==4.0.1
 python-jose[cryptography]
 toml
