@@ -57,7 +57,7 @@ class ImageForFrontend(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class PaginatedImagesResponse(BaseModel):
+class PaginatedImages(BaseModel): # Renamed from PaginatedImagesResponse
     data: List[ImageForFrontend]
     total_items: int
     total_pages: int
