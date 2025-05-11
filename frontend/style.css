@@ -64,7 +64,7 @@ img {
 /* Header Styles */
 header {
     background-color: var(--header-bg-color);
-    padding: 1rem 0.5rem; /* Reduced horizontal padding */
+    padding: 1rem 1rem; /* Restored some horizontal padding */
     border-bottom: 1px solid var(--border-color);
     position: sticky;
     top: 0;
@@ -144,9 +144,9 @@ header {
 /* Main Content Styles */
 .main-container {
     display: flex;
-    max-width: 100%; /* Allow full width */
-    margin: 0 auto;
-    padding: 0.5rem 0.5rem; /* Keep vertical padding, horizontal padding applied to sidebar/content-area */
+    max-width: 1700px; /* Set a max-width to allow side margins on wider screens */
+    margin: 0 auto; /* Center the container */
+    padding: 0.5rem 1rem; /* Vertical padding and some horizontal padding for content within */
     gap: 0.5rem; /* Reduced gap between sidebar and content */
 }
 
