@@ -185,7 +185,7 @@ async def upload_image(
         raise HTTPException(status_code=500, detail=f"Database error during image upload: {e}")
 
 
-@router.get("/images/", response_model=models.PaginatedImagesResponse)
+@router.get("/images/", response_model=models.PaginatedImages)
 async def list_images(
     request: Request,
     page: int = Query(1, ge=1, description="Page number for pagination (1-indexed)"),
@@ -247,7 +247,7 @@ async def list_images(
             )
         )
 
-    return models.PaginatedImagesResponse(
+    return models.PaginatedImages(
         data=frontend_images,
         total_items=total_items,
         total_pages=total_pages,
