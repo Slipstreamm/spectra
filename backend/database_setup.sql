@@ -17,8 +17,21 @@ CREATE TABLE IF NOT EXISTS posts (
     -- Consider adding fields like width, height
     -- A hash of the file could also be useful for de-duplication:
     -- file_hash VARCHAR(64) UNIQUE -- e.g., SHA256 hash
+    image_width INTEGER DEFAULT NULL,           -- Width of the image in pixels
+    image_height INTEGER DEFAULT NULL,          -- Height of the image in pixels
     CONSTRAINT uq_filepath_posts UNIQUE (filepath) -- Ensure filepath is unique
 );
+
+-- Add image_width and image_height to existing posts table if they don't exist
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='posts' AND column_name='image_width') THEN
+        ALTER TABLE posts ADD COLUMN image_width INTEGER DEFAULT NULL;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='posts' AND column_name='image_height') THEN
+        ALTER TABLE posts ADD COLUMN image_height INTEGER DEFAULT NULL;
+    END IF;
+END $$;
 
 -- Table for storing tags
 CREATE TABLE IF NOT EXISTS tags (

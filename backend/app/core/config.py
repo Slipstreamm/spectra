@@ -74,6 +74,7 @@ class Settings(BaseSettings):
     MAX_FILE_SIZE_MB: int = 5
     DEFAULT_IMAGES_PER_PAGE: int = 20
     MAX_IMAGES_PER_PAGE: int = 100
+    PROJECT_ROOT_DIR: Path = Path(__file__).resolve().parent.parent.parent.parent # Adjust as needed
 
     # Nested settings from TOML (or their defaults if TOML section is missing)
     site: SiteSettings = Field(default_factory=SiteSettings)
