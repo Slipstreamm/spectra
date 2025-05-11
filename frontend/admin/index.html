@@ -4,6 +4,83 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - Spectra</title>
+    <!-- Critical CSS for theme to prevent flash -->
+    <style>
+        html[data-theme="dark"] {
+            --bg-color: #2E3440;
+            --text-color: #ECEFF4;
+            --header-bg-color: #3B4252;
+            --card-bg-color: #3B4252;
+            --border-color: #4C566A;
+            --button-bg-color: #5E81AC; /* Added from new dark theme */
+            --button-text-color: #ECEFF4; /* Added from new dark theme */
+            --input-bg-color: #3B4252; /* Added from new dark theme */
+            --input-border-color: #4C566A; /* Added from new dark theme */
+        }
+
+        html[data-theme="light"] {
+            --bg-color: #F8F9FA;
+            --text-color: #212529;
+            --header-bg-color: #E9ECEF;
+            --card-bg-color: #FFFFFF;
+            --border-color: #DEE2E6;
+            --button-bg-color: #6C757D; /* Added from new light theme */
+            --button-text-color: #FFFFFF; /* Added from new light theme */
+            --input-bg-color: #FFFFFF; /* Added from new light theme */
+            --input-border-color: #CED4DA; /* Added from new light theme */
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol"; /* Common system font stack */
+        }
+
+        header { /* Basic header styling */
+            background-color: var(--header-bg-color);
+            padding: 0.75em 1em;
+            border-bottom: 1px solid var(--border-color);
+            /* display: flex; For alignment if needed */
+            /* justify-content: space-between; For alignment if needed */
+            /* align-items: center; For alignment if needed */
+        }
+        
+        /* Basic button styling for FOUC */
+        button, .button { /* .button class for consistency if used */
+            background-color: var(--button-bg-color);
+            color: var(--button-text-color);
+            border: 1px solid var(--border-color);
+            padding: 0.5em 1em;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        /* Basic input styling for FOUC */
+        input[type="text"], input[type="password"], input[type="email"], textarea {
+            background-color: var(--input-bg-color);
+            color: var(--text-color);
+            border: 1px solid var(--input-border-color);
+            padding: 0.5em;
+            border-radius: 4px;
+        }
+        /* Admin page specific FOUC */
+        .container { /* from admin/style.css */
+             /* No specific bg, but good to have if styles change */
+        }
+        #loginSection, .management-section { /* from admin/style.css */
+            background-color: var(--card-bg-color);
+            border: 1px solid var(--border-color);
+        }
+
+    </style>
+    <!-- Apply theme immediately to prevent flash -->
+    <script data-cfasync="false">
+        (function() {
+            const savedTheme = localStorage.getItem('spectraTheme') || 'dark'; // Default to dark if nothing saved
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
+    </script>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
