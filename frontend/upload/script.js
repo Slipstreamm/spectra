@@ -46,10 +46,8 @@ document.addEventListener('DOMContentLoaded', () => {
             formData.append('tags_str', imageTagsIn.value.trim());
 
             try {
-                // The '/upload/' endpoint is assumed from the original script.
-                // This might need to be '/images/upload/' or similar depending on backend routes.
-                // For now, using the original '/upload/'
-                const response = await fetch(`${API_BASE_URL}/upload/`, {
+                // The endpoint for creating posts (which includes upload) is /api/v1/posts/
+                const response = await fetch(`${API_BASE_URL}/posts/`, {
                     method: 'POST',
                     body: formData,
                     // 'Content-Type': 'multipart/form-data' is automatically set by browser for FormData
