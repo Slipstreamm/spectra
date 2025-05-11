@@ -26,18 +26,32 @@ def _parse_tags_from_source(tags_source: Any) -> List[models.Tag]:
 
     parsed_tags = []
     for item in actual_tag_data_list:
+        item_dict = None
         if isinstance(item, dict):
+            item_dict = item
+        elif isinstance(item, str):
+            try:
+                loaded_item = json.loads(item)
+                if isinstance(loaded_item, dict):
+                    item_dict = loaded_item
+                else:
+                    print(f"Warning: Tag item string did not parse to a dict: {item[:100]}")
+            except json.JSONDecodeError:
+                print(f"Warning: JSONDecodeError for tag item string: {item[:100]}")
+        
+        if item_dict:
             try:
                 # Ensure 'id' is present and is an int, 'name' is present and is a str
-                if 'id' in item and isinstance(item['id'], int) and \
-                   'name' in item and isinstance(item['name'], str):
-                    parsed_tags.append(models.Tag(**item))
+                if 'id' in item_dict and isinstance(item_dict['id'], int) and \
+                   'name' in item_dict and isinstance(item_dict['name'], str):
+                    parsed_tags.append(models.Tag(**item_dict))
                 else:
-                    print(f"Warning: Tag item dict is missing fields or has wrong types: {item}")
+                    print(f"Warning: Tag item dict is missing fields or has wrong types: {item_dict}")
             except Exception as e: # Catch PydanticError or other issues during model creation
-                print(f"Warning: Failed to create Tag from dict {item}. Error: {e}")
+                print(f"Warning: Failed to create Tag from dict {item_dict}. Error: {e}")
         else:
-            print(f"Warning: Item in tags list is not a dict: {item}")
+            if item is not None: # Avoid warning for None if it somehow gets here
+                 print(f"Warning: Item in tags list is not a dict or valid JSON string for a dict: {type(item)} - {str(item)[:100]}")
     return parsed_tags
 
 # Cache constants
@@ -199,6 +213,7 @@ async def get_image(db: asyncpg.Connection, redis: redis_async.Redis, image_id: 
 
     # image_record['tags'] will be a list of dicts from json_agg
     # Pydantic should handle this conversion for the List[models.Tag]
+    parsed_db_tags = _parse_tags_from_source(image_record['tags'])
     db_image_model = models.Image(
         id=image_record['id'],
         filename=image_record['filename'],
@@ -206,7 +221,7 @@ async def get_image(db: asyncpg.Connection, redis: redis_async.Redis, image_id: 
         mimetype=image_record['mimetype'],
         filesize=image_record['filesize'],
         uploaded_at=image_record['uploaded_at'],
-        tags=[models.Tag(**tag_data) for tag_data in image_record['tags']], # Explicitly map if needed
+        tags=parsed_db_tags, # Use the parsed tags
         image_url=None # URL to be populated in router
     )
     
