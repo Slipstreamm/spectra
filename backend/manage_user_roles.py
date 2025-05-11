@@ -27,30 +27,18 @@ async def run_script_operations(
 
     conn = None
     try:
-        # Check for essential database settings before attempting to connect
-        required_db_settings = [
-            "POSTGRES_USER",
-            "POSTGRES_PASSWORD",
-            "POSTGRES_DB",
-            "POSTGRES_SERVER",
-            "POSTGRES_PORT"
-        ]
-        missing_settings = [
-            attr for attr in required_db_settings if not hasattr(script_settings, attr) or not getattr(script_settings, attr)
-        ]
-
-        if missing_settings:
-            print(f"Error: Missing essential database configuration: {', '.join(missing_settings)}.")
-            print("Please ensure these are set in your .env file, system environment, or a correctly formatted config.toml.")
-            # The user's feedback already indicated a TOML loading issue, so this reinforces checking .env.
-            sys.exit(1)
-
+        # The app_settings object (instance of Settings) will have a 'database' attribute
+        # which is an instance of DatabaseSettings. This will contain defaults,
+        # values from config.toml, or values from prefixed environment variables.
+        
+        # Attempt to connect using the resolved settings.
+        # If settings are incorrect (e.g., wrong password, host), asyncpg will raise an error.
         conn = await asyncpg.connect(
-            user=script_settings.POSTGRES_USER,
-            password=script_settings.POSTGRES_PASSWORD.get_secret_value(),
-            database=script_settings.POSTGRES_DB,
-            host=script_settings.POSTGRES_SERVER,
-            port=script_settings.POSTGRES_PORT
+            user=script_settings.database.user,
+            password=str(script_settings.database.password), # Ensure password is str; defined as str in DatabaseSettings
+            database=script_settings.database.name,
+            host=script_settings.database.host,
+            port=script_settings.database.port
         )
 
         # user_to_update_record will hold an object compatible with UserInDB
