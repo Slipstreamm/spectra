@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request
-from typing import Annotated, List
+from typing import Annotated, List, Optional
 import asyncpg
 import redis.asyncio as redis_async
 import os # For file deletion
