@@ -25,8 +25,24 @@ def get_image_url(request: Request, filename: str) -> str:
     # However, request.url_for needs the name of the route, which is 'static_uploads'
     # and the path parameter for StaticFiles is 'path'.
     # Ensure settings.SERVER_HOST is correctly configured if absolute URLs are needed externally.
-    # For now, let's construct it relative to the API structure.
-    return f"{str(request.base_url).rstrip('/')}{settings.API_V1_STR}/static/uploads/{filename}"
+    
+    base_url_str = str(request.base_url).rstrip('/') # Example: "http://localhost:8000"
+    
+    # Path components, ensure they are stripped of leading/trailing slashes
+    # to be joined correctly.
+    # settings.API_V1_STR is typically like "/api/v1"
+    api_v1_segment = settings.API_V1_STR.strip('/') 
+    static_segment = "static/uploads" # Static mount point relative to API_V1_STR
+    filename_segment = filename.strip('/')
+    
+    # Filter out empty segments that might result from stripping if a segment was just "/" or empty
+    path_parts = [s for s in [api_v1_segment, static_segment, filename_segment] if s]
+    
+    full_path = "/".join(path_parts) # Example: "api/v1/static/uploads/image.jpg"
+    
+    # Construct the full URL
+    final_url = f"{base_url_str}/{full_path}"
+    return final_url
 
 
 @router.post("/upload/", response_model=models.Image, status_code=201)
@@ -155,7 +171,8 @@ async def upload_image(
         # response_image = models.Image(**created_image_record, image_url=get_image_url(request, created_image_record['filename']))
         
         # If crud returns a models.Image instance (ideal):
-        created_image_record.image_url = HttpUrl(get_image_url(request, created_image_record.filename))
+        # Pydantic V2 will validate the string against HttpUrl type annotation
+        created_image_record.image_url = get_image_url(request, created_image_record.filename)
         return created_image_record
 
     except Exception as e:
@@ -187,7 +204,7 @@ async def list_images(
     
     response_images = []
     for img_model in images_data: # crud.get_images now returns list of models.Image
-        img_model.image_url = HttpUrl(get_image_url(request, img_model.filename))
+        img_model.image_url = get_image_url(request, img_model.filename) # Pydantic V2 validation
         response_images.append(img_model)
 
     return models.PaginatedImages(limit=limit, offset=skip, total=total_count, data=response_images)
@@ -207,5 +224,5 @@ async def get_image_details(
     if image_model is None:
         raise HTTPException(status_code=404, detail="Image not found")
     
-    image_model.image_url = HttpUrl(get_image_url(request, image_model.filename))
+    image_model.image_url = get_image_url(request, image_model.filename) # Pydantic V2 validation
     return image_model

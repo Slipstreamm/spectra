@@ -126,11 +126,17 @@ async def list_all_images_admin(
 
     # Populate image_url for each image (similar to images.py router)
     for img in images_list:
-        if img.filepath: # Assuming filepath is relative like "backend/uploads/filename.jpg"
+        if img.filename: # filename should be directly usable
             # Construct URL based on how static files are served
-            # settings.API_V1_STR + /static/uploads/ + filename
-            # The filename part needs to be extracted from filepath
-            img_filename = os.path.basename(img.filepath)
-            img.image_url = f"{settings.SERVER_HOST}{settings.API_V1_STR}/static/uploads/{img_filename}"
+            # Use request.base_url for scheme and host, then construct path carefully
+            base_url_str = str(request.base_url).rstrip('/')
+            api_v1_segment = settings.API_V1_STR.strip('/')
+            static_segment = "static/uploads"
+            filename_segment = img.filename.strip('/')
+            
+            path_parts = [s for s in [api_v1_segment, static_segment, filename_segment] if s]
+            full_path = "/".join(path_parts)
+            
+            img.image_url = f"{base_url_str}/{full_path}" # Pydantic V2 validation
             
     return models.PaginatedImages(limit=limit, offset=skip, total=total_images, data=images_list)
