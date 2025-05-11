@@ -89,7 +89,7 @@ async def login_for_access_token(
     if not user.is_active: # UserInDB has is_active
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user")
 
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token_expires = timedelta(minutes=settings.security.access_token_expire_minutes)
     access_token = security.create_access_token(
         data={"sub": user.username}, expires_delta=access_token_expires
     )

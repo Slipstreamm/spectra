@@ -10,6 +10,7 @@ from typing import Optional, List, Any, Dict
 # .parent.parent -> .../backend/app
 # .parent.parent.parent -> .../backend
 CONFIG_FILE_PATH = Path(__file__).resolve().parent.parent.parent / "config.toml"
+print(f"Loading configuration from {CONFIG_FILE_PATH}")
 
 # --- Nested Pydantic Models for TOML Structure ---
 class SiteSettings(PydanticBaseModel):
