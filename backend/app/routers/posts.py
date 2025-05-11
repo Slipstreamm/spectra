@@ -99,7 +99,7 @@ async def upload_post(
         description=description,
         tags=tags_str.split(',') if tags_str else []
     )
-    
+
     db_filepath = f"{settings.UPLOADS_DIR}/{unique_filename}"
 
     try:
@@ -135,7 +135,7 @@ async def list_posts(
     posts_from_db = await crud.get_posts(db=db, redis=redis, skip=skip, limit=limit, tags_filter=tags_list)
     total_items = await crud.count_posts(db=db, redis=redis, tags_filter=tags_list)
     total_pages = math.ceil(total_items / limit) if total_items > 0 else 0
-    
+
     frontend_posts: List[models.PostForFrontend] = []
     for post_model in posts_from_db: # post_model is models.Post
         image_url = get_post_image_url(request, post_model.filename)
@@ -143,7 +143,7 @@ async def list_posts(
 
         # Transform tags from List[models.Tag] to List[models.FrontendTag]
         frontend_tags = [models.FrontendTag(name=tag.name) for tag in post_model.tags]
-        
+
         uploader_frontend = None
         if post_model.uploader:
             uploader_frontend = models.UserBase(
@@ -176,7 +176,8 @@ async def list_posts(
         current_page=page
     )
 
-@router.get("/{post_id}/", response_model=models.Post)
+@router.get("/{post_id}", response_model=models.Post)
+@router.get("/{post_id}/", response_model=models.Post)  # Add duplicate route with trailing slash
 async def get_post_details(
     request: Request,
     post_id: int,
@@ -186,7 +187,7 @@ async def get_post_details(
     post_model = await crud.get_post(db=db, redis=redis, post_id=post_id)
     if post_model is None:
         raise HTTPException(status_code=404, detail="Post not found")
-    
+
     post_model.image_url = get_post_image_url(request, post_model.filename)
     post_model.thumbnail_url = post_model.image_url # Placeholder
     return post_model

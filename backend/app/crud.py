@@ -5,6 +5,7 @@ from typing import List, Dict, Any, Optional
 from . import models
 from .core.config import settings
 from .core import security
+from .core.json_utils import json_dumps
 
 # Helper function to robustly parse tags
 def _parse_tags_from_source(tags_source: Any) -> List[models.Tag]:
@@ -38,7 +39,7 @@ def _parse_tags_from_source(tags_source: Any) -> List[models.Tag]:
                     print(f"Warning: Tag item string did not parse to a dict: {item[:100]}")
             except json.JSONDecodeError:
                 print(f"Warning: JSONDecodeError for tag item string: {item[:100]}")
-        
+
         if item_dict:
             try:
                 if 'id' in item_dict and isinstance(item_dict['id'], int) and \
@@ -107,10 +108,10 @@ async def create_post_with_tags(
                     "INSERT INTO post_tags (post_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
                     created_post_id, tag_obj.id
                 )
-        
+
         uploader_info_record = await db.fetchrow("SELECT * FROM users WHERE id = $1", uploader_id)
         uploader_info = models.User(**uploader_info_record) if uploader_info_record else None
-        
+
         response_post = models.Post(
             id=post_record['id'], filename=post_record['filename'], filepath=post_record['filepath'],
             mimetype=post_record['mimetype'], filesize=post_record['filesize'], title=post_record['title'],
@@ -118,7 +119,7 @@ async def create_post_with_tags(
             uploader=uploader_info, uploaded_at=post_record['uploaded_at'], tags=processed_tags,
             image_url=None, thumbnail_url=None, comment_count=0, upvotes=0, downvotes=0
         )
-        
+
         list_cache_keys = [key async for key in redis.scan_iter(match=f"{POST_LIST_CACHE_PREFIX}*")]
         if list_cache_keys: await redis.delete(*list_cache_keys)
         count_cache_keys = [key async for key in redis.scan_iter(match=f"{POST_COUNT_CACHE_PREFIX}*")]
@@ -251,7 +252,7 @@ async def get_posts(
         ))
     if posts_list:
         try:
-            cacheable_data = json.dumps([post.model_dump() for post in posts_list])
+            cacheable_data = json_dumps([post.model_dump() for post in posts_list])
             await redis.set(cache_key, cacheable_data, ex=CACHE_EXPIRY_SECONDS)
         except Exception as e:
             print(f"Error caching post list: {e}")
@@ -296,7 +297,7 @@ async def count_posts(
                  WHERE pt_inner.post_id = p.id AND t_inner.name IN ({tag_placeholders})) = {len(normalized_tags_filter)}
             """)
             query_params.extend(normalized_tags_filter)
-    
+
     if conditions:
         # If tags_filter was applied, the base_query might have been changed to include joins.
         # If not, and conditions exist, ensure joins are present for tag filtering.
@@ -469,9 +470,9 @@ async def get_comments_for_post(db: asyncpg.Connection, redis: redis_async.Redis
     # For threaded comments, the query would be more complex (e.g., recursive CTE)
     # or handled by multiple queries client-side/service-side.
     # This example fetches top-level comments and their direct user info.
-    
+
     comment_records = await db.fetch(query, post_id, limit, skip)
-    
+
     comments_list = []
     for record in comment_records:
         commenter_user_base = models.UserBase(
@@ -496,11 +497,11 @@ async def get_comments_for_post(db: asyncpg.Connection, redis: redis_async.Redis
     if comments_list:
         try:
             # For caching, ensure UserBase within Comment is also serializable if not default
-            cacheable_data = json.dumps([comment.model_dump() for comment in comments_list])
+            cacheable_data = json_dumps([comment.model_dump() for comment in comments_list])
             await redis.set(cache_key, cacheable_data, ex=CACHE_EXPIRY_SECONDS)
         except Exception as e:
             print(f"Error caching comments list for post {post_id}: {e}")
-            
+
     return comments_list
 
 # Vote CRUD operations
@@ -524,7 +525,7 @@ async def cast_vote(db: asyncpg.Connection, redis: redis_async.Redis, vote_data:
                 WHERE user_id = $1 AND comment_id = $2 AND post_id IS NULL
             """
             params = [user_id, target_comment_id]
-        
+
         existing_vote_record = await db.fetchrow(existing_vote_query, *params)
 
         if existing_vote_record:
@@ -581,7 +582,7 @@ async def cast_vote(db: asyncpg.Connection, redis: redis_async.Redis, vote_data:
         # Fetch user details for the vote response
         voter_user = await get_user(db, created_vote_record['user_id'])
         voter_user_base = models.UserBase(
-            email=voter_user.email, 
+            email=voter_user.email,
             username=voter_user.username
         ) if voter_user else None
 
