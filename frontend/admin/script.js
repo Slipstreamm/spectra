@@ -6,6 +6,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const logoutButton = document.getElementById('logoutButton');
     const imageListDiv = document.getElementById('imageList');
 
+    // New elements for mass upload
+    const massUploadForm = document.getElementById('massUploadForm');
+    const massUploadFilesInput = document.getElementById('massUploadFiles');
+    const massUploadTagsInput = document.getElementById('massUploadTags');
+    const massUploadStatus = document.getElementById('massUploadStatus');
+
+    // New elements for batch tag update
+    const batchTagUpdateForm = document.getElementById('batchTagUpdateForm');
+    const batchTagUpdatePostIdsInput = document.getElementById('batchTagUpdatePostIds');
+    const batchTagUpdateTagsInput = document.getElementById('batchTagUpdateTags');
+    const batchTagUpdateActionButton = document.getElementById('batchTagUpdateButton');
+    const batchTagUpdateStatus = document.getElementById('batchTagUpdateStatus');
+    
+    let selectedPostIdsForTagging = new Set();
+
     const API_BASE_URL = '/api/v1'; // Adjust if your API prefix is different
 
     function getToken() {
@@ -109,11 +124,22 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await response.json(); // Expecting PaginatedImages model
 
             imageListDiv.innerHTML = ''; // Clear previous content
+            selectedPostIdsForTagging.clear(); // Clear selection on refresh
+            updateBatchTagPostIdsDisplay();
+
 
             if (result.data && result.data.length > 0) {
                 result.data.forEach(image => {
                     const itemDiv = document.createElement('div');
                     itemDiv.className = 'image-item';
+
+                    // Checkbox for batch selection
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.className = 'image-select-checkbox';
+                    checkbox.dataset.postId = image.id;
+                    checkbox.addEventListener('change', handleImageSelectionForTagging);
+                    itemDiv.appendChild(checkbox);
 
                     const imgElement = document.createElement('img');
                     imgElement.src = image.image_url || `${API_BASE_URL}/static/uploads/${image.filename}`;
@@ -210,5 +236,145 @@ document.addEventListener('DOMContentLoaded', () => {
         showDashboard();
     } else {
         showLogin();
+    }
+
+    // --- Mass Image Upload Logic ---
+    if (massUploadForm) {
+        massUploadForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const token = getToken();
+            if (!token) {
+                massUploadStatus.textContent = 'Authentication error. Please log in.';
+                showLogin();
+                return;
+            }
+
+            const files = massUploadFilesInput.files;
+            const tagsStr = massUploadTagsInput.value;
+
+            if (!files || files.length === 0) {
+                massUploadStatus.textContent = 'Please select at least one file to upload.';
+                return;
+            }
+
+            massUploadStatus.textContent = `Uploading ${files.length} file(s)...`;
+
+            const formData = new FormData();
+            for (let i = 0; i < files.length; i++) {
+                formData.append('files', files[i]);
+            }
+            if (tagsStr) {
+                formData.append('tags_str', tagsStr);
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/admin/posts/batch-upload`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok || response.status === 201 || response.status === 207) { // 207 for Multi-Status
+                    let message = `Batch upload process completed.\n`;
+                    message += `Successful uploads: ${result.successful ? result.successful.length : 0}\n`;
+                    if (result.failed && result.failed.length > 0) {
+                        message += `Failed uploads: ${result.failed.length}\n`;
+                        result.failed.forEach(fail => {
+                            message += `- ${fail.filename}: ${fail.error}\n`;
+                        });
+                    }
+                    massUploadStatus.textContent = message;
+                    massUploadForm.reset();
+                    fetchAdminImages(); // Refresh image list
+                } else {
+                    massUploadStatus.textContent = `Upload failed: ${result.detail?.message || result.detail || response.statusText}`;
+                }
+            } catch (error) {
+                console.error('Mass upload error:', error);
+                massUploadStatus.textContent = `Upload error: ${error.message}`;
+            }
+        });
+    }
+
+    // --- Batch Tag Update Logic ---
+    function handleImageSelectionForTagging(event) {
+        const postId = parseInt(event.target.dataset.postId, 10);
+        if (event.target.checked) {
+            selectedPostIdsForTagging.add(postId);
+        } else {
+            selectedPostIdsForTagging.delete(postId);
+        }
+        updateBatchTagPostIdsDisplay();
+    }
+
+    function updateBatchTagPostIdsDisplay() {
+        const idsArray = Array.from(selectedPostIdsForTagging);
+        batchTagUpdatePostIdsInput.value = idsArray.join(', ');
+        batchTagUpdateActionButton.disabled = idsArray.length === 0;
+    }
+
+    if (batchTagUpdateForm) {
+        batchTagUpdateForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const token = getToken();
+            if (!token) {
+                batchTagUpdateStatus.textContent = 'Authentication error. Please log in.';
+                showLogin();
+                return;
+            }
+
+            const postIds = Array.from(selectedPostIdsForTagging);
+            const tags = batchTagUpdateTagsInput.value.split(',').map(t => t.trim()).filter(t => t);
+            const action = batchTagUpdateForm.querySelector('input[name="action"]:checked').value;
+
+            if (postIds.length === 0) {
+                batchTagUpdateStatus.textContent = 'Please select at least one image to update.';
+                return;
+            }
+            if (tags.length === 0 && action !== 'set') { // 'set' can have empty tags to clear
+                batchTagUpdateStatus.textContent = 'Please enter tags for the action.';
+                return;
+            }
+            
+            batchTagUpdateStatus.textContent = 'Updating tags...';
+
+            const payload = {
+                post_ids: postIds,
+                tags: tags,
+                action: action
+            };
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/admin/posts/batch-tags`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    batchTagUpdateStatus.textContent = `Tag update successful: ${result.message || 'Completed.'} Affected posts: ${result.updated_posts_count || 0}.`;
+                    fetchAdminImages(); // Refresh image list to show updated tags
+                    // Clear selection and form
+                    selectedPostIdsForTagging.clear();
+                    updateBatchTagPostIdsDisplay();
+                    batchTagUpdateTagsInput.value = '';
+
+                } else {
+                    batchTagUpdateStatus.textContent = `Tag update failed: ${result.detail || response.statusText}`;
+                }
+            } catch (error) {
+                console.error('Batch tag update error:', error);
+                batchTagUpdateStatus.textContent = `Tag update error: ${error.message}`;
+            }
+        });
     }
 });

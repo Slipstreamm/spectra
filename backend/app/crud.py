@@ -595,3 +595,144 @@ async def cast_vote(db: asyncpg.Connection, redis: redis_async.Redis, vote_data:
             created_at=created_vote_record['created_at'],
             user=voter_user_base
         )
+
+async def update_user_role(db: asyncpg.Connection, user_id: int, new_role: models.UserRole) -> Optional[models.User]:
+    """
+    Update the role of a user.
+    """
+    async with db.transaction():
+        # Fetch the current user data first to ensure it exists and for constructing the response
+        current_user_record = await db.fetchrow(
+            "SELECT id, username, email, role, is_active, created_at FROM users WHERE id = $1",
+            user_id
+        )
+        if not current_user_record:
+            return None
+
+        # Update the role
+        updated_record = await db.fetchrow(
+            "UPDATE users SET role = $1 WHERE id = $2 RETURNING id, username, email, role, is_active, created_at",
+            new_role.value, user_id
+        )
+        if not updated_record:
+            # This case should ideally not be reached if current_user_record was found,
+            # but it's a safeguard.
+            return None
+        
+        # Construct the User model for the response.
+        # is_superuser can be derived or kept as its current value if not directly managed by role alone.
+        # For simplicity, we'll rely on the User model's default or existing logic for is_superuser.
+        return models.User(**updated_record)
+
+async def update_tags_for_posts(
+    db: asyncpg.Connection,
+    redis: redis_async.Redis,
+    post_ids: List[int],
+    tag_names_to_modify: List[str],
+    action: models.BatchTagAction
+) -> Dict[str, Any]:
+    """
+    Batch update tags for multiple posts.
+    Actions:
+    - ADD: Adds the specified tags to the posts.
+    - REMOVE: Removes the specified tags from the posts.
+    - SET: Replaces all existing tags on the posts with the specified tags.
+    Returns a dictionary with counts of affected posts and tags.
+    """
+    if not post_ids:
+        return {"message": "No post IDs provided.", "updated_posts_count": 0, "affected_tags_count": 0}
+
+    # Ensure all post_ids are valid integers
+    valid_post_ids = [int(pid) for pid in post_ids if isinstance(pid, (int, str)) and str(pid).isdigit()]
+    if not valid_post_ids:
+        return {"message": "No valid post IDs provided.", "updated_posts_count": 0, "affected_tags_count": 0}
+    
+    # Prepare tag objects (get or create them)
+    tag_objects_to_modify: List[models.Tag] = []
+    if tag_names_to_modify: # Only process if there are tags to modify
+        for tag_name in tag_names_to_modify:
+            tag_name_cleaned = tag_name.strip().lower()
+            if not tag_name_cleaned:
+                continue
+            try:
+                tag_obj = await get_or_create_tag(db, tag_name_cleaned)
+                tag_objects_to_modify.append(tag_obj)
+            except ValueError: # Handles empty tag name from get_or_create_tag
+                print(f"Skipping empty or invalid tag name: '{tag_name}'")
+            except Exception as e:
+                print(f"Error processing tag '{tag_name}': {e}")
+                # Decide if this should be a hard fail or just skip the tag
+    
+    tag_ids_to_modify = [tag.id for tag in tag_objects_to_modify]
+
+    updated_posts_count = 0
+    
+    # Use a transaction for atomicity
+    async with db.transaction():
+        # Verify existence of posts first to avoid issues later
+        # This also helps in confirming which posts were actually targeted
+        placeholders = ', '.join(f'${i+1}' for i in range(len(valid_post_ids)))
+        existing_posts_records = await db.fetch(f"SELECT id FROM posts WHERE id IN ({placeholders})", *valid_post_ids)
+        actual_post_ids_to_update = [record['id'] for record in existing_posts_records]
+
+        if not actual_post_ids_to_update:
+            return {"message": "None of the provided post IDs exist.", "updated_posts_count": 0, "affected_tags_count": 0}
+
+        updated_posts_count = len(actual_post_ids_to_update)
+        post_id_placeholders = ', '.join(f'${i+1}' for i in range(len(actual_post_ids_to_update)))
+
+        if action == models.BatchTagAction.SET:
+            # Delete all existing tags for these posts
+            await db.execute(f"DELETE FROM post_tags WHERE post_id IN ({post_id_placeholders})", *actual_post_ids_to_update)
+            # Then add the new tags (if any)
+            if tag_ids_to_modify:
+                # Prepare for bulk insert
+                insert_values = []
+                for post_id in actual_post_ids_to_update:
+                    for tag_id in tag_ids_to_modify:
+                        insert_values.append((post_id, tag_id))
+                if insert_values:
+                    await db.executemany(
+                        "INSERT INTO post_tags (post_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+                        insert_values
+                    )
+        
+        elif action == models.BatchTagAction.ADD:
+            if tag_ids_to_modify:
+                insert_values = []
+                for post_id in actual_post_ids_to_update:
+                    for tag_id in tag_ids_to_modify:
+                        insert_values.append((post_id, tag_id))
+                if insert_values:
+                    await db.executemany(
+                        "INSERT INTO post_tags (post_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+                        insert_values
+                    )
+
+        elif action == models.BatchTagAction.REMOVE:
+            if tag_ids_to_modify:
+                tag_id_placeholders = ', '.join(f'${i+1+len(actual_post_ids_to_update)}' for i in range(len(tag_ids_to_modify)))
+                query_params = actual_post_ids_to_update + tag_ids_to_modify
+                await db.execute(
+                    f"DELETE FROM post_tags WHERE post_id IN ({post_id_placeholders}) AND tag_id IN ({tag_id_placeholders})",
+                    *query_params
+                )
+    
+    # Invalidate Redis caches for affected posts and lists
+    if updated_posts_count > 0:
+        for post_id in actual_post_ids_to_update:
+            await redis.delete(f"{POST_CACHE_PREFIX}{post_id}")
+        
+        # Broad invalidation for list caches, as their content might have changed
+        list_cache_keys = [key async for key in redis.scan_iter(match=f"{POST_LIST_CACHE_PREFIX}*")]
+        if list_cache_keys: await redis.delete(*list_cache_keys)
+        
+        count_cache_keys = [key async for key in redis.scan_iter(match=f"{POST_COUNT_CACHE_PREFIX}*")]
+        if count_cache_keys: await redis.delete(*count_cache_keys)
+
+    return {
+        "message": f"Successfully performed '{action.value}' operation.",
+        "updated_posts_count": updated_posts_count,
+        "processed_tags_count": len(tag_ids_to_modify) if tag_names_to_modify else 0,
+        "target_post_ids_found": actual_post_ids_to_update
+    }

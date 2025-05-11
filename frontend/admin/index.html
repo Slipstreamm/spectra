@@ -120,6 +120,49 @@
                         <!-- Images will be listed here -->
                     </div>
                 </div>
+
+                <div class="management-section" id="mass-upload-section">
+                    <h3>Mass Image Upload</h3>
+                    <form id="massUploadForm">
+                        <div>
+                            <label for="massUploadFiles">Select Images (multiple):</label>
+                            <input type="file" id="massUploadFiles" name="files" multiple accept="image/jpeg,image/png,image/gif,image/webp">
+                        </div>
+                        <div>
+                            <label for="massUploadTags">Common Tags (comma-separated):</label>
+                            <input type="text" id="massUploadTags" name="tags_str" placeholder="e.g., nature, sky, animal">
+                        </div>
+                        <button type="submit">Upload Selected Images</button>
+                    </form>
+                    <div id="massUploadStatus"></div>
+                </div>
+
+                <div class="management-section" id="batch-tag-update-section">
+                    <h3>Batch Update Image Tags</h3>
+                    <p>Select images from the list above to apply tag changes.</p>
+                    <form id="batchTagUpdateForm">
+                        <div>
+                            <label for="batchTagUpdatePostIds">Selected Post IDs (auto-filled):</label>
+                            <input type="text" id="batchTagUpdatePostIds" name="post_ids_display" readonly placeholder="Select images from the list">
+                        </div>
+                        <div>
+                            <label for="batchTagUpdateTags">Tags (comma-separated):</label>
+                            <input type="text" id="batchTagUpdateTags" name="tags" required placeholder="e.g., new_tag, another_tag">
+                        </div>
+                        <div>
+                            <label>Action:</label>
+                            <input type="radio" id="batchTagActionAdd" name="action" value="add" checked>
+                            <label for="batchTagActionAdd">Add</label>
+                            <input type="radio" id="batchTagActionRemove" name="action" value="remove">
+                            <label for="batchTagActionRemove">Remove</label>
+                            <input type="radio" id="batchTagActionSet" name="action" value="set">
+                            <label for="batchTagActionSet">Set (Replace All)</label>
+                        </div>
+                        <button type="submit" id="batchTagUpdateButton" disabled>Update Tags for Selected</button>
+                    </form>
+                    <div id="batchTagUpdateStatus"></div>
+                </div>
+
             </section>
         </main>
 

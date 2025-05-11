@@ -154,3 +154,201 @@ async def list_all_posts_admin(
         total_pages=total_pages_val,
         current_page=current_page_val
     )
+
+# For python-magic, ensure it's available
+try:
+    import magic
+except ImportError:
+    magic = None # Fallback if not installed, though it's in requirements.txt
+
+import uuid
+import shutil
+from pathlib import Path
+from fastapi import File, UploadFile, Form # For File and UploadFile
+
+# Helper to construct image URLs, similar to posts.py
+def get_admin_post_image_url(request: Request, filename: str) -> str:
+    base_url_str = str(request.base_url).rstrip('/')
+    api_v1_segment = settings.API_V1_STR.strip('/')
+    static_segment = "static/uploads"
+    filename_segment = filename.strip('/')
+    path_parts = [s for s in [api_v1_segment, static_segment, filename_segment] if s]
+    full_path = "/".join(path_parts)
+    return f"{base_url_str}/{full_path}"
+
+
+@router.post("/posts/batch-upload", status_code=status.HTTP_201_CREATED, tags=["Admin"])
+async def batch_upload_posts_admin(
+    request: Request,
+    current_user: Annotated[models.User, Depends(require_admin_owner)],
+    db: asyncpg.Connection = Depends(get_db_connection),
+    redis: redis_async.Redis = Depends(get_redis_connection),
+    files: List[UploadFile] = File(...),
+    tags_str: Optional[str] = Form(None) # Common tags for all files in this batch
+):
+    """
+    Batch upload multiple images. Admins/Owners only.
+    Applies a common set of tags to all uploaded images.
+    Titles and descriptions can be auto-generated or left blank.
+    """
+    if not files:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No files provided for batch upload.")
+
+    if not magic:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="File type verification (magic) is not available.")
+
+    project_root = Path(__file__).resolve().parent.parent.parent.parent # z:/projects_git/spectra
+    uploads_abs_path = project_root / settings.UPLOADS_DIR # z:/projects_git/spectra/backend/uploads
+    if not uploads_abs_path.exists():
+        uploads_abs_path.mkdir(parents=True, exist_ok=True)
+
+    results = {"successful": [], "failed": []}
+    common_tags_list = tags_str.split(',') if tags_str and tags_str.strip() else []
+
+    for file in files:
+        original_filename = file.filename or "unknown_file"
+        file_location_on_disk = None # Initialize
+        try:
+            if file.content_type not in settings.ALLOWED_MIME_TYPES:
+                results["failed"].append({"filename": original_filename, "error": f"Invalid MIME type (header): {file.content_type}. Allowed: {', '.join(settings.ALLOWED_MIME_TYPES)}"})
+                continue
+
+            file_content_chunk = await file.read(2048) # Read a chunk for magic
+            await file.seek(0) # Reset file pointer
+            true_mime_type = magic.from_buffer(file_content_chunk, mime=True)
+
+            if true_mime_type not in settings.ALLOWED_MIME_TYPES:
+                results["failed"].append({"filename": original_filename, "error": f"Invalid MIME type (content: {true_mime_type}). Allowed: {', '.join(settings.ALLOWED_MIME_TYPES)}"})
+                continue
+            
+            file.file.seek(0, os.SEEK_END)
+            file_size = file.file.tell()
+            await file.seek(0) # Reset file pointer again for saving
+
+            if file_size > settings.MAX_FILE_SIZE_MB * 1024 * 1024:
+                results["failed"].append({"filename": original_filename, "error": f"File too large. Max size: {settings.MAX_FILE_SIZE_MB}MB"})
+                continue
+
+            file_extension = Path(original_filename).suffix
+            unique_filename = f"{uuid.uuid4()}{file_extension}"
+            file_location_on_disk = uploads_abs_path / unique_filename
+
+            with open(file_location_on_disk, "wb+") as file_object:
+                shutil.copyfileobj(file.file, file_object)
+
+            # Simple title/description for batch upload
+            post_title = Path(original_filename).stem 
+            post_description = f"Uploaded by admin: {original_filename}"
+
+            post_data_create = models.PostCreate(
+                filename=unique_filename,
+                mimetype=true_mime_type,
+                filesize=file_size,
+                title=post_title,
+                description=post_description,
+                tags=common_tags_list
+            )
+            db_filepath = f"{settings.UPLOADS_DIR}/{unique_filename}" # Relative path for DB
+
+            created_post_record = await crud.create_post_with_tags(
+                db=db, redis=redis, post_data=post_data_create,
+                filepath_on_disk=str(db_filepath), # Ensure it's a string
+                uploader_id=current_user.id
+            )
+
+            if not created_post_record:
+                if file_location_on_disk.exists(): os.remove(file_location_on_disk)
+                results["failed"].append({"filename": original_filename, "error": "Could not create post record in database."})
+                continue
+            
+            # Construct the response model for this successful upload
+            created_post_record.image_url = get_admin_post_image_url(request, created_post_record.filename)
+            created_post_record.thumbnail_url = created_post_record.image_url # Placeholder
+            results["successful"].append(models.Post.model_validate(created_post_record).model_dump())
+
+        except HTTPException as e: # Catch HTTPExceptions from validation steps
+            if file_location_on_disk and file_location_on_disk.exists(): os.remove(file_location_on_disk)
+            results["failed"].append({"filename": original_filename, "error": e.detail})
+        except Exception as e:
+            if file_location_on_disk and file_location_on_disk.exists(): os.remove(file_location_on_disk)
+            results["failed"].append({"filename": original_filename, "error": f"An unexpected error occurred: {str(e)}"})
+        finally:
+            if hasattr(file, 'file') and file.file: # Ensure file object exists and is open
+                file.file.close()
+    
+    if not results["successful"] and results["failed"]:
+         # If all uploads failed, return a 400 or 500 level error
+         # For simplicity, let's return 207 Multi-Status if there's a mix,
+         # or 201 if all succeed, or an error if all fail.
+         # This logic can be refined. If all fail, perhaps a 400 is more appropriate.
+         # For now, let's assume if any failed, we still return 207 to show partial success/failure.
+         # If ALL failed, maybe a 400 or 500 depending on why.
+         # Let's adjust: if no successes, raise an error.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail={"message": "All file uploads failed.", "failures": results["failed"]}
+        )
+
+    # If there are any successes, even with failures, return 207 Multi-Status
+    # If all were successful, 201 was already set.
+    # FastAPI will override 201 with 200 if a response body is returned and status_code isn't explicitly set in return.
+    # To ensure 207 for mixed results:
+    if results["failed"]:
+        # This requires a custom response or careful handling of status codes.
+        # For now, let's return the results dict. The client can infer from it.
+        # The status_code=201 is for "Created" if all are successful.
+        # If there are failures, it's more like a "Multi-Status" (207).
+        # However, FastAPI doesn't automatically switch to 207.
+        # We'll return the dict, and the client can check 'failed' list.
+        # If we want to strictly adhere to 207, we'd need to return a Response object.
+        # For simplicity, we'll rely on the 201 if at least one succeeded.
+        # The frontend will need to check the 'failed' array in the response.
+        pass # Keep status_code 201 if at least one succeeded.
+
+    return results # Returns a dict like {"successful": [...], "failed": [...]}
+
+
+@router.put("/posts/batch-tags", status_code=status.HTTP_200_OK, tags=["Admin"])
+async def batch_update_post_tags_admin(
+    request_data: models.BatchTagUpdateRequest,
+    current_user: Annotated[models.User, Depends(require_admin_owner)],
+    db: asyncpg.Connection = Depends(get_db_connection),
+    redis: redis_async.Redis = Depends(get_redis_connection)
+):
+    """
+    Batch update tags for multiple posts. Admins/Owners only.
+    Actions: add, remove, set.
+    """
+    if not request_data.post_ids:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No post_ids provided.")
+    
+    # The Pydantic model BatchTagUpdateRequest already validates that tags list is not empty for add/remove.
+    # For 'set' action, an empty tags list is allowed (to clear all tags).
+
+    try:
+        result = await crud.update_tags_for_posts(
+            db=db,
+            redis=redis,
+            post_ids=request_data.post_ids,
+            tag_names_to_modify=request_data.tags,
+            action=request_data.action
+        )
+        
+        if result.get("updated_posts_count", 0) == 0 and result.get("message") != "No post IDs provided.": # Check if posts were actually found and updated
+             # If no posts were updated but some were targeted, it implies they weren't found or another issue.
+             # The crud function returns a message if no valid post IDs or no existing posts are found.
+            if "None of the provided post IDs exist" in result.get("message", ""):
+                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=result.get("message"))
+            # For other cases where updated_posts_count is 0 but it's not due to "No post IDs provided" initially.
+            # This could mean valid IDs were given, but none existed in DB.
+            # The crud function already handles this by returning a specific message.
+            # We can rely on the message from crud.
+
+        return result
+        
+    except ValueError as ve: # Catch potential ValueErrors from crud or model validation
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve))
+    except Exception as e:
+        # Log the exception for server-side review
+        print(f"Error during batch tag update: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An unexpected error occurred during batch tag update: {str(e)}")

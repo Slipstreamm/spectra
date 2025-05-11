@@ -196,3 +196,24 @@ class Vote(VoteBase):
 class VoteCounts(BaseModel):
     upvotes: int
     downvotes: int
+
+# Admin specific models
+class BatchTagAction(str, Enum):
+    ADD = "add"
+    REMOVE = "remove"
+    SET = "set"
+
+class BatchTagUpdateRequest(BaseModel):
+    post_ids: List[int] = Field(..., min_items=1)
+    action: BatchTagAction
+    tags: List[constr(strip_whitespace=True, to_lower=True, min_length=1, max_length=50)] = Field(default_factory=list, max_items=50) # Max 50 tags per operation
+
+    @field_validator('tags')
+    def check_tags_for_set_action(cls, v, values):
+        action = values.data.get('action')
+        if action == BatchTagAction.SET and not v:
+            # Allow setting empty tags to effectively clear all tags
+            return []
+        if not v and action != BatchTagAction.SET : # For add/remove, tags list cannot be empty
+            raise ValueError("Tags list cannot be empty for 'add' or 'remove' actions.")
+        return v
