@@ -127,37 +127,66 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        images.forEach(image => {
+        images.forEach(post => { // Renamed 'image' to 'post' for clarity
             const itemDiv = document.createElement('div');
             itemDiv.className = 'gallery-item';
-            itemDiv.addEventListener('click', () => openModal(image));
+            // itemDiv.addEventListener('click', () => openModal(post)); // Old modal click
+            itemDiv.addEventListener('click', () => {
+                window.location.href = `post.html?id=${post.id}`;
+            });
 
             const imgElement = document.createElement('img');
-            imgElement.src = image.thumbnail_url || image.image_url || `${API_BASE_URL}/static/uploads/${image.filename}`; // Prefer thumbnail
-            imgElement.alt = image.filename;
+            imgElement.src = post.thumbnail_url || post.image_url || `${API_BASE_URL}/static/uploads/${post.filename}`; // Prefer thumbnail
+            imgElement.alt = post.title || post.filename; // Use title for alt text if available
             imgElement.loading = 'lazy'; // Lazy load images
 
             const infoDiv = document.createElement('div');
             infoDiv.className = 'gallery-item-info';
 
+            // Post Title
+            const titleElement = document.createElement('h3');
+            titleElement.className = 'post-title';
+            titleElement.textContent = post.title || 'Untitled Post';
+            infoDiv.appendChild(titleElement);
+
+            // Uploader Info
+            const uploaderElement = document.createElement('p');
+            uploaderElement.className = 'post-uploader';
+            uploaderElement.textContent = `By: ${post.uploader ? post.uploader.username : 'Unknown'}`;
+            infoDiv.appendChild(uploaderElement);
+            
+            // Comment Count
+            const commentsElement = document.createElement('p');
+            commentsElement.className = 'post-comments';
+            commentsElement.textContent = `Comments: ${post.comment_count !== undefined ? post.comment_count : 'N/A'}`;
+            infoDiv.appendChild(commentsElement);
+
+            // Vote Score
+            const votesElement = document.createElement('p');
+            votesElement.className = 'post-votes';
+            const voteScore = (post.upvotes !== undefined && post.downvotes !== undefined) ? (post.upvotes - post.downvotes) : 'N/A';
+            votesElement.textContent = `Score: ${voteScore}`;
+            infoDiv.appendChild(votesElement);
+
+            // Tags (similar to before, but using 'post' object)
             const tagsDiv = document.createElement('div');
             tagsDiv.className = 'tags';
-            if (image.tags && image.tags.length > 0) {
-                image.tags.slice(0, 3).forEach(tag => { // Show a few tags
+            if (post.tags && post.tags.length > 0) {
+                post.tags.slice(0, 3).forEach(tag => { // Show a few tags
                     const tagSpan = document.createElement('span');
                     tagSpan.textContent = tag.name;
                     tagsDiv.appendChild(tagSpan);
                 });
-                if (image.tags.length > 3) {
+                if (post.tags.length > 3) {
                     const moreSpan = document.createElement('span');
-                    moreSpan.textContent = `+${image.tags.length - 3}`;
+                    moreSpan.textContent = `+${post.tags.length - 3}`;
                     tagsDiv.appendChild(moreSpan);
                 }
             } else {
                 tagsDiv.textContent = 'No tags';
             }
-            
             infoDiv.appendChild(tagsDiv);
+            
             itemDiv.appendChild(imgElement);
             itemDiv.appendChild(infoDiv);
             galleryContainer.appendChild(itemDiv);

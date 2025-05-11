@@ -182,6 +182,30 @@ main {
 
 .gallery-item-info {
     padding: 0.8rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem; /* Add some space between info elements */
+}
+
+.gallery-item-info .post-title {
+    font-size: 1rem;
+    font-weight: bold;
+    margin: 0 0 0.2rem 0;
+    color: var(--text-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.gallery-item-info .post-uploader,
+.gallery-item-info .post-comments,
+.gallery-item-info .post-votes {
+    font-size: 0.8rem;
+    color: var(--secondary-color);
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .gallery-item-info .tags {

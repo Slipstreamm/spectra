@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Post Detail - Spectra</title>
+    <link rel="stylesheet" href="style.css"> <!-- Main styles -->
+    <link rel="stylesheet" href="post_style.css"> <!-- Post-specific styles -->
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <h1 class="site-title"><a href="index.html">Spectra</a></h1>
+            <div class="user-actions">
+                <button id="themeToggle">Toggle Theme</button>
+                <!-- Auth links will be added later -->
+            </div>
+        </div>
+    </header>
+
+    <main id="postDetailContainer">
+        <article class="post-full-content">
+            <h2 id="postTitle">Loading Post...</h2>
+            <div class="post-meta">
+                <span id="postUploader">By: ...</span> | 
+                <span id="postUploadedAt">Uploaded: ...</span>
+            </div>
+            
+            <div class="post-image-container">
+                <img id="postImage" src="" alt="Post Image">
+            </div>
+
+            <div class="post-description">
+                <h3>Description</h3>
+                <p id="postDescriptionText">...</p>
+            </div>
+
+            <div class="post-tags-container">
+                <h3>Tags</h3>
+                <div id="postTags" class="tags">
+                    <!-- Tags will be populated by JS -->
+                </div>
+            </div>
+
+            <div class="post-actions">
+                <h3>Actions</h3>
+                <div class="vote-section" data-target-type="post">
+                    <button class="vote-button upvote" data-vote-type="upvote">Upvote</button>
+                    <span class="vote-score" id="postVoteScore">0</span>
+                    <button class="vote-button downvote" data-vote-type="downvote">Downvote</button>
+                </div>
+            </div>
+        </article>
+
+        <section class="comments-section">
+            <h3>Comments (<span id="commentCount">0</span>)</h3>
+            <div id="commentsList">
+                <!-- Comments will be populated by JS -->
+                <p class="status-message">Loading comments...</p>
+            </div>
+
+            <h4>Leave a Comment</h4>
+            <form id="commentForm">
+                <textarea id="commentText" placeholder="Write your comment here..." required></textarea>
+                <button type="submit" id="submitComment">Post Comment</button>
+                <p id="commentError" class="error-message" style="display:none;"></p>
+            </form>
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; <span id="currentYear"></span> Spectra Image Board. All rights reserved.</p>
+    </footer>
+
+    <script src="post_script.js"></script>
+    <script>
+        // Small script for theme toggle and year, similar to index.html
+        document.getElementById('themeToggle').addEventListener('click', () => {
+            const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('spectraTheme', newTheme);
+            // If server-side theme config is used, it would need fetching like in main script.js
+        });
+        const preferredTheme = localStorage.getItem('spectraTheme') || 'dark';
+        document.documentElement.setAttribute('data-theme', preferredTheme);
+        document.getElementById('currentYear').textContent = new Date().getFullYear();
+    </script>
+</body>
+</html>
