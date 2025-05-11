@@ -432,6 +432,11 @@ async def create_comment(db: asyncpg.Connection, redis: redis_async.Redis, comme
 
         # Invalidate post cache as comment_count has changed
         await redis.delete(f"{POST_CACHE_PREFIX}{post_id}")
+        # Invalidate the comments list cache for this post
+        comments_list_cache_keys = [key async for key in redis.scan_iter(match=f"{COMMENTS_FOR_POST_CACHE_PREFIX}{post_id}:*")]
+        if comments_list_cache_keys:
+            await redis.delete(*comments_list_cache_keys)
+            print(f"Invalidated comments list cache for post {post_id} due to new comment.")
         # Potentially invalidate post list caches if they show comment counts directly
         # For simplicity, we might rely on TTL or broader invalidation for list caches for now.
 
