@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer # Added OAuth2PasswordBearer
 from typing import Annotated
 import asyncpg
 from datetime import timedelta # Ensure timedelta is imported
