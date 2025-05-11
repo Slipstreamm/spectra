@@ -117,10 +117,12 @@ async def shutdown_event():
         print("Redis connection pool resources released (if applicable).")
 
 # Further imports and API routers will be added here.
-from .routers import images, auth, admin, utils # Import new routers
+from .routers import posts, auth, admin, utils, comments, votes # Import new routers
 
-app.include_router(images.router, prefix=settings.API_V1_STR, tags=["Images"])
+app.include_router(posts.router, prefix=settings.API_V1_STR, tags=["Posts"])
 app.include_router(auth.router, prefix=settings.API_V1_STR + "/auth", tags=["Authentication"])
 app.include_router(admin.router, prefix=settings.API_V1_STR + "/admin", tags=["Admin"])
-app.include_router(utils.router, prefix=settings.API_V1_STR, tags=["Utils"]) # Include utils router
+app.include_router(utils.router, prefix=settings.API_V1_STR, tags=["Utils"])
+app.include_router(comments.router, prefix=settings.API_V1_STR, tags=["Comments"]) # Added comments router
+app.include_router(votes.router, prefix=settings.API_V1_STR, tags=["Votes"]) # Added votes router
 # app.include_router(tags.router, prefix=settings.API_V1_STR, tags=["Tags"]) # Include tags router when created
