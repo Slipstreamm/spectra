@@ -66,7 +66,7 @@ async def get_or_create_tag(db: asyncpg.Connection, tag_name: str) -> models.Tag
     Retrieves a tag by name if it exists, otherwise creates it.
     Returns the tag object (Pydantic model).
     """
-    tag_name_cleaned = tag_name.strip().lower()
+    tag_name_cleaned = tag_name.strip().lower().replace(' ', '_')
     if not tag_name_cleaned:
         # Should not happen if input is validated, but as a safeguard
         raise ValueError("Tag name cannot be empty.")
@@ -245,7 +245,7 @@ async def get_images(
     """
     # Create a cache key based on parameters
     # Normalize tags_filter for consistent cache key
-    normalized_tags_key_part = "_".join(sorted([tag.strip().lower() for tag in tags_filter])) if tags_filter else "all"
+    normalized_tags_key_part = "_".join(sorted([tag.strip().lower().replace(' ', '_') for tag in tags_filter])) if tags_filter else "all"
     cache_key = f"{IMAGE_LIST_CACHE_PREFIX}skip_{skip}_limit_{limit}_tags_{normalized_tags_key_part}"
 
     cached_images_json = await redis.get(cache_key)
@@ -286,7 +286,7 @@ async def get_images(
 
     if tags_filter:
         # Normalize tags_filter
-        normalized_tags_filter = [tag.strip().lower() for tag in tags_filter if tag.strip()]
+        normalized_tags_filter = [tag.strip().lower().replace(' ', '_') for tag in tags_filter if tag.strip()]
         if normalized_tags_filter:
             # This subquery ensures the image has ALL the specified tags
             conditions.append(f"""
@@ -380,7 +380,7 @@ async def count_images(
     Counts the total number of images, optionally filtered by tags.
     Checks cache first.
     """
-    normalized_tags_key_part = "_".join(sorted([tag.strip().lower() for tag in tags_filter])) if tags_filter else "all"
+    normalized_tags_key_part = "_".join(sorted([tag.strip().lower().replace(' ', '_') for tag in tags_filter])) if tags_filter else "all"
     cache_key = f"{IMAGE_COUNT_CACHE_PREFIX}tags_{normalized_tags_key_part}"
 
     cached_count = await redis.get(cache_key)
@@ -399,7 +399,7 @@ async def count_images(
     param_idx = 1
 
     if tags_filter:
-        normalized_tags_filter = [tag.strip().lower() for tag in tags_filter if tag.strip()]
+        normalized_tags_filter = [tag.strip().lower().replace(' ', '_') for tag in tags_filter if tag.strip()]
         if normalized_tags_filter:
             tag_placeholders = ', '.join([f'${i+param_idx}' for i in range(len(normalized_tags_filter))])
             # This join is needed to filter by tags
