@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const galleryContainer = document.getElementById('galleryContainer');
     const paginationControls = document.getElementById('paginationControls');
     const tagSearchInput = document.getElementById('tagSearchInput');
-    const searchButton = document.getElementById('searchButton');
+    const searchButton = document.getElementById('searchButton'); // For tag search
     const imageModal = document.getElementById('imageModal');
     const modalImage = document.getElementById('modalImage');
     const modalFilename = document.getElementById('modalFilename');
@@ -12,6 +12,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeModalButton = imageModal.querySelector('.close-button');
     const tagDisplayArea = document.getElementById('tag-display-area'); // Added for sidebar tags
     const sidebarTagFilterInput = document.getElementById('sidebarTagFilter'); // Added for the new filter input
+
+    // Advanced Search DOM Elements
+    const filterDateAfterInput = document.getElementById('filterDateAfter');
+    const filterDateBeforeInput = document.getElementById('filterDateBefore');
+    const filterMinScoreInput = document.getElementById('filterMinScore');
+    const filterMinWidthInput = document.getElementById('filterMinWidth');
+    const filterMinHeightInput = document.getElementById('filterMinHeight');
+    const filterUploaderInput = document.getElementById('filterUploader');
+    const applyAdvancedSearchButton = document.getElementById('applyAdvancedSearchButton');
+
     // Auth-related DOM Elements
     const loginLink = document.getElementById('loginLink');
     const registerLink = document.getElementById('registerLink');
@@ -20,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const usernameDisplay = document.getElementById('usernameDisplay');
     const itemsPerPageSelect = document.getElementById('itemsPerPageSelect');
     const controlsBar = document.getElementById('controlsBar');
+    const galleryContainerElement = document.getElementById('galleryContainer'); // Ensure this is the one we modify
     // const accountLink = document.getElementById('accountLink');
 
 
@@ -30,6 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentTags = '';
     let currentSortBy = 'date'; // Default sort: 'date', 'score', 'id', 'random'
     let currentOrder = 'desc'; // Default order: 'asc', 'desc'
+    let currentAdvancedFilters = {}; // To store advanced filter values
     // serverThemeConfig is removed as theme logic is now in theme.js
 
     // --- Authentication Handling ---
@@ -95,29 +107,39 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Image Fetching and Rendering ---
-    async function fetchImages(tags = '', page = 1, sort_by = currentSortBy, order = currentOrder, limit = IMAGES_PER_PAGE) {
-        currentTags = tags;
+    async function fetchImages(tags = '', page = 1, sort_by = currentSortBy, order = currentOrder, limit = IMAGES_PER_PAGE, advancedFilters = currentAdvancedFilters) {
+        currentTags = tags; // Basic tag search
         currentPage = page;
         currentSortBy = sort_by;
         currentOrder = order;
-        IMAGES_PER_PAGE = parseInt(limit, 10); // Update global IMAGES_PER_PAGE from selected limit
+        IMAGES_PER_PAGE = parseInt(limit, 10);
+        currentAdvancedFilters = advancedFilters; // Store current advanced filters
 
         galleryContainer.innerHTML = '<p class="status-message">Loading images...</p>';
         paginationControls.innerHTML = ''; // Clear old pagination
 
-        let queryParams = `?page=${page}&limit=${IMAGES_PER_PAGE}`;
+        let queryParams = new URLSearchParams({
+            page: page,
+            limit: IMAGES_PER_PAGE,
+            sort_by: sort_by,
+            order: order
+        });
+
         if (tags) {
-            queryParams += `&tags=${encodeURIComponent(tags.trim().split(/\s+/).join(','))}`;
-        }
-        if (sort_by) {
-            queryParams += `&sort_by=${sort_by}`;
-        }
-        if (order) {
-            queryParams += `&order=${order}`;
+            queryParams.set('tags', tags.trim().split(/\s+/).join(','));
         }
 
+        // Append advanced filters
+        for (const key in advancedFilters) {
+            if (advancedFilters[key]) { // Only add if value is present
+                queryParams.set(key, advancedFilters[key]);
+            }
+        }
+        
+        const queryString = queryParams.toString();
+
         try {
-            const response = await fetch(`${API_BASE_URL}/posts/${queryParams}`); // Changed from /images/ to /posts/
+            const response = await fetch(`${API_BASE_URL}/posts/?${queryString}`); // Changed from /images/ to /posts/
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
@@ -203,28 +225,71 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function renderPagination(totalPages, page) {
+    function renderPagination(totalPages, currentPage) {
         paginationControls.innerHTML = '';
         if (totalPages <= 1) return;
 
-        const prevButton = document.createElement('button');
-        prevButton.id = 'prevPage';
-        prevButton.textContent = 'Previous';
-        prevButton.disabled = page <= 1;
-        prevButton.addEventListener('click', () => fetchImages(currentTags, page - 1));
-        paginationControls.appendChild(prevButton);
+        const createPageButton = (text, targetPage, isDisabled = false, isCurrent = false, isEllipsis = false) => {
+            const button = document.createElement(isEllipsis ? 'span' : 'button');
+            button.textContent = text;
+            if (isEllipsis) {
+                button.className = 'pagination-ellipsis';
+            } else {
+                button.className = 'pagination-button';
+                if (isCurrent) {
+                    button.classList.add('active');
+                    button.disabled = true; // Disable current page button
+                }
+                if (isDisabled && !isCurrent) { // Don't re-disable if already current
+                    button.disabled = true;
+                }
+                if (!isDisabled && !isEllipsis) {
+                    // Pass currentAdvancedFilters to pagination clicks
+                    button.addEventListener('click', () => fetchImages(currentTags, targetPage, currentSortBy, currentOrder, IMAGES_PER_PAGE, currentAdvancedFilters));
+                }
+            }
+            return button;
+        };
 
-        const pageInfo = document.createElement('span');
-        pageInfo.className = 'current-page';
-        pageInfo.textContent = `Page ${page} of ${totalPages}`;
-        paginationControls.appendChild(pageInfo);
+        // First Button
+        paginationControls.appendChild(createPageButton('First', 1, currentPage === 1));
 
-        const nextButton = document.createElement('button');
-        nextButton.id = 'nextPage';
-        nextButton.textContent = 'Next';
-        nextButton.disabled = page >= totalPages;
-        nextButton.addEventListener('click', () => fetchImages(currentTags, page + 1));
-        paginationControls.appendChild(nextButton);
+        // Previous Button
+        paginationControls.appendChild(createPageButton('Previous', currentPage - 1, currentPage === 1));
+
+        // Page Number Buttons
+        const contextPages = 2; // Number of pages to show around the current page
+        let pagesToShow = new Set();
+
+        // Add first page
+        pagesToShow.add(1);
+
+        // Add pages around current page
+        for (let i = Math.max(1, currentPage - contextPages); i <= Math.min(totalPages, currentPage + contextPages); i++) {
+            pagesToShow.add(i);
+        }
+
+        // Add last page
+        pagesToShow.add(totalPages);
+
+        const sortedPages = Array.from(pagesToShow).sort((a, b) => a - b);
+        let lastPageShown = 0;
+
+        sortedPages.forEach(p => {
+            if (p > lastPageShown + 1 && lastPageShown > 0) { // Check lastPageShown > 0 to avoid ellipsis before page 1 if 1 isn't in contextPages
+                paginationControls.appendChild(createPageButton('...', 0, true, false, true)); // Ellipsis
+            }
+            if (p > 0) { // Ensure page number is valid
+                 paginationControls.appendChild(createPageButton(p.toString(), p, false, p === currentPage));
+            }
+            lastPageShown = p;
+        });
+        
+        // Next Button
+        paginationControls.appendChild(createPageButton('Next', currentPage + 1, currentPage === totalPages));
+
+        // Last Button
+        paginationControls.appendChild(createPageButton('Last', totalPages, currentPage === totalPages));
     }
 
     // --- Modal Logic ---
@@ -269,18 +334,52 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- Search Logic ---
-    function handleSearch() {
+    function handleTagSearch() { // Renamed from handleSearch
         const tags = tagSearchInput.value.trim();
-        fetchImages(tags, 1); // Reset to page 1 for new search
+        currentAdvancedFilters = {}; // Clear advanced filters when doing a new tag search
+        clearAdvancedFilterInputs();
+        fetchImages(tags, 1, currentSortBy, currentOrder, IMAGES_PER_PAGE, {}); // Reset to page 1, clear advanced filters
     }
 
-    searchButton.addEventListener('click', handleSearch);
-    tagSearchInput.addEventListener('keypress', (event) => {
-        if (event.key === 'Enter') {
-            handleSearch();
-        }
-    });
+    if (searchButton) { // For tag search
+        searchButton.addEventListener('click', handleTagSearch);
+    }
+    if (tagSearchInput) {
+        tagSearchInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                handleTagSearch();
+            }
+        });
+    }
+
+    function handleAdvancedSearch() {
+        const filters = {
+            uploaded_after: filterDateAfterInput.value,
+            uploaded_before: filterDateBeforeInput.value,
+            min_score: filterMinScoreInput.value ? parseInt(filterMinScoreInput.value, 10) : '',
+            min_width: filterMinWidthInput.value ? parseInt(filterMinWidthInput.value, 10) : '',
+            min_height: filterMinHeightInput.value ? parseInt(filterMinHeightInput.value, 10) : '',
+            uploader_name: filterUploaderInput.value.trim()
+        };
+        // When applying advanced search, we might want to use current tags from tagSearchInput or clear them.
+        // For now, let's assume advanced search can be combined with tags in the main search bar.
+        const tags = tagSearchInput.value.trim(); 
+        fetchImages(tags, 1, currentSortBy, currentOrder, IMAGES_PER_PAGE, filters);
+    }
+
+    if (applyAdvancedSearchButton) {
+        applyAdvancedSearchButton.addEventListener('click', handleAdvancedSearch);
+    }
     
+    function clearAdvancedFilterInputs() {
+        if(filterDateAfterInput) filterDateAfterInput.value = '';
+        if(filterDateBeforeInput) filterDateBeforeInput.value = '';
+        if(filterMinScoreInput) filterMinScoreInput.value = '';
+        if(filterMinWidthInput) filterMinWidthInput.value = '';
+        if(filterMinHeightInput) filterMinHeightInput.value = '';
+        if(filterUploaderInput) filterUploaderInput.value = '';
+    }
+
     // --- Tag Sidebar Logic ---
     async function fetchAndDisplayTags() {
         if (!tagDisplayArea) return; // Sidebar might not be on all pages
@@ -364,7 +463,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 a.addEventListener('click', (e) => {
                     e.preventDefault();
                     tagSearchInput.value = tag.name; // Use original tag name for search
-                    handleSearch();
+                    handleTagSearch(); // Use new tag search handler
                 });
                 li.appendChild(a);
                 popularUl.appendChild(li);
@@ -395,7 +494,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         a.addEventListener('click', (e) => {
                             e.preventDefault();
                             tagSearchInput.value = tag.name; // Use original tag name for search
-                            handleSearch();
+                            handleTagSearch(); // Use new tag search handler
                         });
                         li.appendChild(a);
                         ul.appendChild(li);
@@ -424,7 +523,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     a.addEventListener('click', (e) => {
                         e.preventDefault();
                         tagSearchInput.value = tag.name;
-                        handleSearch();
+                        handleTagSearch(); // Use new tag search handler
                     });
                     li.appendChild(a);
                     ul.appendChild(li);
@@ -485,10 +584,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize items per page from select, or default
     if (itemsPerPageSelect) {
-        IMAGES_PER_PAGE = parseInt(itemsPerPageSelect.value, 10);
+        IMAGES_PER_PAGE = parseInt(itemsPerPageSelect.value, 10); // Set initial based on HTML selected
         itemsPerPageSelect.addEventListener('change', (event) => {
             const newLimit = parseInt(event.target.value, 10);
-            fetchImages(currentTags, 1, currentSortBy, currentOrder, newLimit); // Reset to page 1
+            // Pass currentAdvancedFilters when changing items per page
+            fetchImages(currentTags, 1, currentSortBy, currentOrder, newLimit, currentAdvancedFilters); 
         });
     }
 
@@ -496,31 +596,51 @@ document.addEventListener('DOMContentLoaded', () => {
     if (controlsBar) {
         const sortButtons = controlsBar.querySelectorAll('.sort-button');
         sortButtons.forEach(button => {
-            // Set initial active state based on defaultSortBy and defaultOrder
-            if (button.dataset.sort === currentSortBy) {
-                 // For 'date' and 'score', the default order is 'desc'.
-                 // 'random' doesn't have an order.
-                if (currentSortBy === 'random' || button.dataset.order === currentOrder) {
-                    button.classList.add('active');
-                }
+            if (button.dataset.sort === currentSortBy && (currentSortBy === 'random' || button.dataset.order === currentOrder)) {
+                button.classList.add('active');
             }
-
             button.addEventListener('click', () => {
                 sortButtons.forEach(btn => btn.classList.remove('active'));
                 button.classList.add('active');
                 const sortBy = button.dataset.sort;
-                const sortOrder = button.dataset.order || 'desc'; // Default to desc if not specified (e.g. for random)
-                fetchImages(currentTags, 1, sortBy, sortOrder, IMAGES_PER_PAGE); // Reset to page 1
+                const sortOrder = button.dataset.order || 'desc';
+                // Pass currentAdvancedFilters when changing sort
+                fetchImages(currentTags, 1, sortBy, sortOrder, IMAGES_PER_PAGE, currentAdvancedFilters);
             });
         });
+
+        // Initialize Thumbnail Size Controls
+        const thumbnailSizeButtons = controlsBar.querySelectorAll('.thumbnail-size-button');
+        let currentThumbnailSize = localStorage.getItem('thumbnailSize') || 'medium'; // Default to medium
+
+        function applyThumbnailSize(size) {
+            if (galleryContainerElement) {
+                galleryContainerElement.classList.remove('size-small', 'size-medium', 'size-large');
+                galleryContainerElement.classList.add(`size-${size}`);
+            }
+            thumbnailSizeButtons.forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.size === size);
+            });
+            localStorage.setItem('thumbnailSize', size);
+            currentThumbnailSize = size; // Update state variable
+        }
+
+        thumbnailSizeButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                applyThumbnailSize(button.dataset.size);
+            });
+        });
+        applyThumbnailSize(currentThumbnailSize); // Apply initial size on load
     }
 
 
     if (initialTagsFromURL) {
         tagSearchInput.value = initialTagsFromURL.replace(/,/g, ' '); // Convert comma to space for input
-        fetchImages(tagSearchInput.value, 1, currentSortBy, currentOrder, IMAGES_PER_PAGE);
+        // Initial load with URL tags, no advanced filters initially
+        fetchImages(tagSearchInput.value, 1, currentSortBy, currentOrder, IMAGES_PER_PAGE, {}); 
     } else {
-        fetchImages('', 1, currentSortBy, currentOrder, IMAGES_PER_PAGE); // Load all images on page 1 initially
+        // Initial load, no tags, no advanced filters
+        fetchImages('', 1, currentSortBy, currentOrder, IMAGES_PER_PAGE, {}); 
     }
     fetchAndDisplayTags(); // Load tags for the sidebar
 

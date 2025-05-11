@@ -185,6 +185,57 @@ header {
     width: 100%;
 }
 
+/* Advanced Search Styles */
+.advanced-search-container {
+    margin-bottom: 1.5rem;
+    padding: 0.5rem;
+    background-color: rgba(0,0,0,0.1); /* Subtle background to group elements */
+    border-radius: 4px;
+}
+
+.advanced-search-container h2 {
+    font-size: 1.2rem;
+    margin-top: 0;
+    margin-bottom: 1rem;
+    color: var(--primary-color);
+}
+
+.advanced-search-container .filter-group {
+    margin-bottom: 0.75rem;
+}
+
+.advanced-search-container .filter-group label {
+    display: block;
+    font-size: 0.9rem;
+    margin-bottom: 0.25rem;
+    color: var(--secondary-color);
+}
+
+.advanced-search-container .filter-group input[type="date"],
+.advanced-search-container .filter-group input[type="number"],
+.advanced-search-container .filter-group input[type="text"] {
+    width: calc(100% - 1em); /* Full width minus padding */
+    padding: 0.4em 0.5em;
+    border: 1px solid var(--input-border-color);
+    background-color: var(--input-bg-color);
+    color: var(--text-color);
+    border-radius: 3px;
+    font-size: 0.9rem;
+}
+
+#applyAdvancedSearchButton {
+    width: 100%;
+    padding: 0.6em 1em;
+    margin-top: 0.5rem;
+    background-color: var(--primary-color);
+    color: var(--bg-color); /* Ensure contrast */
+    border: 1px solid var(--primary-color);
+}
+#applyAdvancedSearchButton:hover {
+    opacity: 0.9;
+}
+
+
 #tag-display-area h3 {
     font-size: 1.2rem;
     margin-top: 0;
@@ -274,12 +325,45 @@ header {
     font-size: 0.9rem;
 }
 
+.controls-bar .thumbnail-size-options {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem; /* Smaller gap for S/M/L buttons */
+}
+.controls-bar .thumbnail-size-options span {
+     margin-right: 0.5rem;
+    font-size: 0.9rem;
+    color: var(--secondary-color);
+}
+
+.controls-bar button.thumbnail-size-button {
+    padding: 0.3rem 0.6rem; /* Smaller padding for S/M/L */
+    min-width: 30px; /* Ensure they are not too squished */
+    font-size: 0.85rem;
+    /* Inherits .sort-button styles for border, radius, cursor, transition */
+}
+
+.controls-bar button.thumbnail-size-button.active {
+    background-color: var(--primary-color);
+    color: var(--bg-color);
+    border-color: var(--primary-color);
+}
+
 
 /* Gallery Grid Styles */
 .gallery-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); /* Slightly larger min for uncropped */
+    /* Default size (medium) */
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); 
     gap: 1rem;
+}
+
+.gallery-grid.size-small {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+/* .gallery-grid.size-medium is the default, no need to repeat if it's the base .gallery-grid style */
+.gallery-grid.size-large {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
 }
 
 .gallery-item {
@@ -385,24 +469,41 @@ html[data-theme="dark"] .gallery-item.gif-post {
     gap: 0.5rem;
 }
 
-#paginationControls button, #paginationControls span {
-    padding: 0.5rem 1rem;
+#paginationControls .pagination-button {
+    padding: 0.5rem 0.8rem; /* Slightly less horizontal padding for more buttons */
     background-color: var(--button-bg-color);
     color: var(--button-text-color);
     border: 1px solid var(--border-color);
     border-radius: 4px;
     cursor: pointer;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+    font-size: 0.9rem;
 }
 
-#paginationControls button:disabled {
-    opacity: 0.5;
+#paginationControls .pagination-button:hover:not(:disabled) {
+    background-color: var(--button-hover-bg-color);
+    border-color: var(--primary-color);
+}
+
+#paginationControls .pagination-button:disabled {
+    opacity: 0.6;
     cursor: not-allowed;
 }
 
-#paginationControls span.current-page {
+#paginationControls .pagination-button.active {
     background-color: var(--primary-color);
-    color: var(--bg-color); /* Or a contrasting color for primary */
+    color: var(--bg-color); /* Ensure contrast with primary color */
     border-color: var(--primary-color);
+    font-weight: bold;
+}
+
+#paginationControls .pagination-ellipsis {
+    padding: 0.5rem 0.3rem; /* Less padding for ellipsis */
+    color: var(--secondary-color);
+    cursor: default;
+    border: 1px solid transparent; /* Keep alignment with buttons */
+    border-radius: 4px;
+    font-size: 0.9rem;
 }
 
 

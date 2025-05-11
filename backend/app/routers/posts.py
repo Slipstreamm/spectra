@@ -3,6 +3,7 @@ import shutil
 import uuid
 from pathlib import Path
 from typing import List, Optional
+from datetime import date # Import date for type hinting
 import magic # For python-magic
 import math
 
@@ -128,11 +129,29 @@ async def list_posts(
     tags: Optional[str] = Query(None),
     sort_by: Optional[str] = Query(None, description="Sort posts by: 'date', 'score', 'id', 'random'"),
     order: Optional[str] = Query("desc", description="Sort order: 'asc' or 'desc'"),
+    # Advanced search parameters
+    uploaded_after: Optional[date] = Query(None, description="Filter posts uploaded after this date (YYYY-MM-DD)"),
+    uploaded_before: Optional[date] = Query(None, description="Filter posts uploaded before this date (YYYY-MM-DD)"),
+    min_score: Optional[int] = Query(None, description="Filter posts with a score greater than or equal to this value"),
+    min_width: Optional[int] = Query(None, ge=1, description="Filter posts with a width greater than or equal to this value"),
+    min_height: Optional[int] = Query(None, ge=1, description="Filter posts with a height greater than or equal to this value"),
+    uploader_name: Optional[str] = Query(None, min_length=1, max_length=50, description="Filter posts by uploader's username"),
     db: asyncpg.Connection = Depends(get_db_connection),
     redis: redis_async.Redis = Depends(get_redis_connection)
 ):
     tags_list = tags.split(',') if tags and tags.strip() else None
     skip = (page - 1) * limit
+
+    advanced_filters = {
+        "uploaded_after": uploaded_after,
+        "uploaded_before": uploaded_before,
+        "min_score": min_score,
+        "min_width": min_width,
+        "min_height": min_height,
+        "uploader_name": uploader_name,
+    }
+    # Remove None values from advanced_filters to pass only active filters to CRUD
+    active_advanced_filters = {k: v for k, v in advanced_filters.items() if v is not None}
 
     # Validate sort_by and order parameters
     allowed_sort_by = ['date', 'score', 'id', 'random', None] # None means default (usually date)
@@ -144,9 +163,14 @@ async def list_posts(
 
     posts_from_db = await crud.get_posts(
         db=db, redis=redis, skip=skip, limit=limit,
-        tags_filter=tags_list, sort_by=sort_by, order=order
+        tags_filter=tags_list, sort_by=sort_by, order=order,
+        advanced_filters=active_advanced_filters # Pass active advanced filters
     )
-    total_items = await crud.count_posts(db=db, redis=redis, tags_filter=tags_list, sort_by=sort_by) # sort_by might affect count if filtering changes
+    total_items = await crud.count_posts(
+        db=db, redis=redis, tags_filter=tags_list,
+        sort_by=sort_by, # sort_by might affect count if filtering changes
+        advanced_filters=active_advanced_filters # Pass active advanced filters
+    )
     total_pages = math.ceil(total_items / limit) if total_items > 0 else 0
 
     frontend_posts: List[models.PostForFrontend] = []

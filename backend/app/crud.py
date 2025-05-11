@@ -180,11 +180,21 @@ async def get_post(db: asyncpg.Connection, redis: redis_async.Redis, post_id: in
 async def get_posts(
     db: asyncpg.Connection, redis: redis_async.Redis, skip: int = 0, limit: int = 10,
     tags_filter: Optional[List[str]] = None,
-    sort_by: Optional[str] = None, order: Optional[str] = "desc"
+    sort_by: Optional[str] = None, order: Optional[str] = "desc",
+    advanced_filters: Optional[Dict[str, Any]] = None
 ) -> List[models.Post]:
     normalized_tags_key_part = "_".join(sorted([tag.strip().lower().replace(' ', '_') for tag in tags_filter])) if tags_filter else "all"
     sort_key_part = f"sort_{sort_by}_order_{order}" if sort_by else "sort_default"
-    cache_key = f"{POST_LIST_CACHE_PREFIX}skip_{skip}_limit_{limit}_tags_{normalized_tags_key_part}_{sort_key_part}"
+    
+    adv_filters_key_parts = []
+    if advanced_filters:
+        for k, v in sorted(advanced_filters.items()): # Sort for consistent key order
+            if v is not None: # Ensure None values don't break the key or are handled consistently
+                adv_filters_key_parts.append(f"{k}_{str(v).replace(' ','_')}")
+    adv_filters_key = "_".join(adv_filters_key_parts) if adv_filters_key_parts else "no_adv_filters"
+
+    cache_key = f"{POST_LIST_CACHE_PREFIX}skip_{skip}_limit_{limit}_tags_{normalized_tags_key_part}_{sort_key_part}_adv_{adv_filters_key}"
+    
     cached_posts_json = await redis.get(cache_key)
     if cached_posts_json:
         try:
@@ -219,20 +229,70 @@ async def get_posts(
     conditions = []
     query_params: List[Any] = []
     param_idx = 1
+
     if tags_filter:
         normalized_tags_filter = [tag.strip().lower().replace(' ', '_') for tag in tags_filter if tag.strip()]
         if normalized_tags_filter:
             tag_placeholders = ', '.join([f'${i+param_idx}' for i in range(len(normalized_tags_filter))])
             conditions.append(f"""
-                (SELECT COUNT(DISTINCT t_filter.id)
-                 FROM post_tags pt_filter JOIN tags t_filter ON pt_filter.tag_id = t_filter.id
-                 WHERE pt_filter.post_id = p.id AND t_filter.name IN ({tag_placeholders})) = {len(normalized_tags_filter)}
+                EXISTS (
+                    SELECT 1
+                    FROM post_tags pt_filter
+                    JOIN tags t_filter ON pt_filter.tag_id = t_filter.id
+                    WHERE pt_filter.post_id = p.id AND t_filter.name IN ({tag_placeholders})
+                    GROUP BY pt_filter.post_id
+                    HAVING COUNT(DISTINCT t_filter.id) = {len(normalized_tags_filter)}
+                )
             """)
             query_params.extend(normalized_tags_filter)
             param_idx += len(normalized_tags_filter)
+
+    if advanced_filters:
+        if advanced_filters.get("uploaded_after"):
+            conditions.append(f"p.uploaded_at >= ${param_idx}")
+            query_params.append(advanced_filters["uploaded_after"])
+            param_idx += 1
+        if advanced_filters.get("uploaded_before"):
+            conditions.append(f"p.uploaded_at <= ${param_idx}")
+            query_params.append(advanced_filters["uploaded_before"])
+            param_idx += 1
+        if advanced_filters.get("min_score") is not None: # Check for None explicitly for 0 score
+            # Score is calculated, so we need a subquery or HAVING clause.
+            # For simplicity in WHERE, let's assume score is positive and filter on upvotes for now,
+            # or adjust the base_query to calculate score and use HAVING.
+            # Using the calculated 'score' alias directly in WHERE is not standard SQL for all DBs without subqueries.
+            # Let's add it to the HAVING clause later if possible, or filter on components.
+            # For now, let's add a placeholder condition that will be part of a HAVING clause if score is used in sort_by
+            # This part is tricky without modifying the base query structure significantly for WHERE.
+            # A common approach is to filter in a subquery or use HAVING.
+            # Let's assume for now we will filter on the calculated score in a HAVING clause if `min_score` is present.
+            # This will be handled by adding to a `having_conditions` list.
+            pass # Will handle min_score with HAVING clause or by adjusting main query structure
+        if advanced_filters.get("min_width"):
+            # Assuming image_width column exists in posts table
+            conditions.append(f"p.image_width >= ${param_idx}") # Placeholder: requires image_width column
+            query_params.append(advanced_filters["min_width"])
+            param_idx += 1
+        if advanced_filters.get("min_height"):
+            # Assuming image_height column exists in posts table
+            conditions.append(f"p.image_height >= ${param_idx}") # Placeholder: requires image_height column
+            query_params.append(advanced_filters["min_height"])
+            param_idx += 1
+        if advanced_filters.get("uploader_name"):
+            conditions.append(f"u.username ILIKE ${param_idx}") # Case-insensitive search for username
+            query_params.append(f"%{advanced_filters['uploader_name']}%") # Add wildcards for partial match
+            param_idx += 1
+            
     if conditions:
         base_query += " WHERE " + " AND ".join(conditions)
 
+    # Handle min_score with a HAVING clause if present
+    having_conditions = []
+    if advanced_filters and advanced_filters.get("min_score") is not None:
+        having_conditions.append(f"score >= ${param_idx}")
+        query_params.append(advanced_filters["min_score"])
+        param_idx += 1
+    
     # Determine ORDER BY clause
     order_clause = "ORDER BY p.uploaded_at DESC, p.id DESC" # Default sort
     if sort_by == "date":
@@ -244,9 +304,15 @@ async def get_posts(
         order_clause = f"ORDER BY p.id {order.upper()}"
     elif sort_by == "random":
         order_clause = "ORDER BY RANDOM()" # PostgreSQL specific for random
+    
+    base_query += f" {order_clause}" # Apply order first
 
-    base_query += f" {order_clause} LIMIT ${param_idx} OFFSET ${param_idx + 1}"
+    if having_conditions:
+        base_query += " HAVING " + " AND ".join(having_conditions)
+
+    base_query += f" LIMIT ${param_idx} OFFSET ${param_idx + 1}" # Then limit and offset
     query_params.extend([limit, skip])
+
 
     post_records = await db.fetch(base_query, *query_params)
     posts_list = []
@@ -277,80 +343,95 @@ async def get_posts(
 
 async def count_posts(
     db: asyncpg.Connection, redis: redis_async.Redis, tags_filter: Optional[List[str]] = None,
-    sort_by: Optional[str] = None # sort_by might be needed if filtering changes based on it, though typically not for count
+    sort_by: Optional[str] = None, # sort_by might be needed if filtering changes based on it
+    advanced_filters: Optional[Dict[str, Any]] = None
 ) -> int:
     normalized_tags_key_part = "_".join(sorted([tag.strip().lower().replace(' ', '_') for tag in tags_filter])) if tags_filter else "all"
+    
+    adv_filters_key_parts = []
+    if advanced_filters:
+        for k, v in sorted(advanced_filters.items()):
+             if v is not None:
+                adv_filters_key_parts.append(f"{k}_{str(v).replace(' ','_')}")
+    adv_filters_key = "_".join(adv_filters_key_parts) if adv_filters_key_parts else "no_adv_filters"
+
     # sort_by is usually not part of count cache key unless it implies different filtering logic for count
-    cache_key = f"{POST_COUNT_CACHE_PREFIX}tags_{normalized_tags_key_part}"
+    cache_key = f"{POST_COUNT_CACHE_PREFIX}tags_{normalized_tags_key_part}_adv_{adv_filters_key}"
+    
     cached_count = await redis.get(cache_key)
     if cached_count is not None:
         try: return int(cached_count)
         except ValueError: print(f"Error decoding cached post count for key: {cache_key}. Fetching from DB.")
 
-    base_query = "SELECT COUNT(DISTINCT p.id) FROM posts p"
+    # Base query for counting. We might need to join with users if filtering by uploader_name.
+    # Or calculate score if filtering by min_score.
+    # This can get complex. A subquery approach is often cleaner for counts with complex filters.
+    
+    # Start with a subquery that applies all filters, then count from that.
+    sub_query_sql = """
+        SELECT p.id
+        FROM posts p
+        LEFT JOIN users u ON p.uploader_id = u.id
+        LEFT JOIN (
+            SELECT post_id, 
+                   (COUNT(CASE WHEN vote_type = 1 THEN 1 END) - COUNT(CASE WHEN vote_type = -1 THEN 1 END)) as calculated_score
+            FROM votes
+            GROUP BY post_id
+        ) v_score ON p.id = v_score.post_id
+    """
     conditions = []
     query_params: List[Any] = []
     param_idx = 1
+
     if tags_filter:
         normalized_tags_filter = [tag.strip().lower().replace(' ', '_') for tag in tags_filter if tag.strip()]
         if normalized_tags_filter:
             tag_placeholders = ', '.join([f'${i+param_idx}' for i in range(len(normalized_tags_filter))])
-            # This join is needed to filter by tags
-            # Ensure the FROM clause includes necessary joins if conditions depend on them
-            # For tag filtering, we need to join with post_tags and tags
-            from_clause_with_joins = """
-                FROM posts p
-                JOIN post_tags pt_count ON p.id = pt_count.post_id
-                JOIN tags t_count ON pt_count.tag_id = t_count.id
-            """
-            if "FROM posts p" in base_query and "JOIN" not in conditions_to_str(conditions): # Avoid duplicate joins if already added
-                 base_query = base_query.replace("FROM posts p", from_clause_with_joins)
-            elif "FROM posts p" not in base_query: # If base_query was already complex
-                 # This case needs careful handling; for now, assume base_query starts simple
-                 pass
-
-
             conditions.append(f"""
-                (SELECT COUNT(DISTINCT t_inner.id)
-                 FROM post_tags pt_inner JOIN tags t_inner ON pt_inner.tag_id = t_inner.id
-                 WHERE pt_inner.post_id = p.id AND t_inner.name IN ({tag_placeholders})) = {len(normalized_tags_filter)}
+                EXISTS (
+                    SELECT 1
+                    FROM post_tags pt_filter
+                    JOIN tags t_filter ON pt_filter.tag_id = t_filter.id
+                    WHERE pt_filter.post_id = p.id AND t_filter.name IN ({tag_placeholders})
+                    GROUP BY pt_filter.post_id
+                    HAVING COUNT(DISTINCT t_filter.id) = {len(normalized_tags_filter)}
+                )
             """)
             query_params.extend(normalized_tags_filter)
+            param_idx += len(normalized_tags_filter)
+
+    if advanced_filters:
+        if advanced_filters.get("uploaded_after"):
+            conditions.append(f"p.uploaded_at >= ${param_idx}")
+            query_params.append(advanced_filters["uploaded_after"])
+            param_idx += 1
+        if advanced_filters.get("uploaded_before"):
+            conditions.append(f"p.uploaded_at <= ${param_idx}")
+            query_params.append(advanced_filters["uploaded_before"])
+            param_idx += 1
+        if advanced_filters.get("min_score") is not None:
+            conditions.append(f"COALESCE(v_score.calculated_score, 0) >= ${param_idx}")
+            query_params.append(advanced_filters["min_score"])
+            param_idx += 1
+        if advanced_filters.get("min_width"):
+            conditions.append(f"p.image_width >= ${param_idx}") # Placeholder: requires image_width column
+            query_params.append(advanced_filters["min_width"])
+            param_idx += 1
+        if advanced_filters.get("min_height"):
+            conditions.append(f"p.image_height >= ${param_idx}") # Placeholder: requires image_height column
+            query_params.append(advanced_filters["min_height"])
+            param_idx += 1
+        if advanced_filters.get("uploader_name"):
+            conditions.append(f"u.username ILIKE ${param_idx}")
+            query_params.append(f"%{advanced_filters['uploader_name']}%")
+            param_idx += 1
 
     if conditions:
-        # If tags_filter was applied, the base_query might have been changed to include joins.
-        # If not, and conditions exist, ensure joins are present for tag filtering.
-        # This logic is a bit complex; the key is that the final query must be valid.
-        # A simpler way for count:
-        if tags_filter and normalized_tags_filter: # Re-check for clarity
-            # Construct a query that correctly counts posts matching all tags
-            count_query = """
-                SELECT COUNT(p.id)
-                FROM posts p
-                WHERE EXISTS (
-                    SELECT 1
-                    FROM post_tags pt
-                    JOIN tags t ON pt.tag_id = t.id
-                    WHERE pt.post_id = p.id AND t.name IN ({})
-                    GROUP BY pt.post_id
-                    HAVING COUNT(DISTINCT t.id) = {}
-                );
-            """.format(
-                ', '.join([f'${i+1}' for i in range(len(normalized_tags_filter))]),
-                len(normalized_tags_filter)
-            )
-            final_query_params = normalized_tags_filter
-            # If there were other conditions, this simplified query would need to incorporate them.
-            # For now, assuming tags_filter is the only complex filter for count.
-            # If other filters were simple (e.g., on posts.title), they'd be added to this WHERE clause.
-            # This example prioritizes correct "all tags" matching for count.
-            base_query = count_query # Override base_query if tag filtering is active
-            query_params = final_query_params # Override query_params
-        elif conditions: # Other conditions, but not the complex tag filter
-             base_query += " WHERE " + " AND ".join(conditions)
-        # If no conditions, base_query = "SELECT COUNT(DISTINCT p.id) FROM posts p" is fine.
+        sub_query_sql += " WHERE " + " AND ".join(conditions)
+    
+    final_count_query = f"SELECT COUNT(*) FROM ({sub_query_sql}) AS filtered_posts"
 
-    count_record = await db.fetchval(base_query, *query_params)
+    count_record = await db.fetchval(final_count_query, *query_params)
     db_count = count_record if count_record is not None else 0
     await redis.set(cache_key, db_count, ex=CACHE_EXPIRY_SECONDS)
     return db_count

@@ -109,8 +109,40 @@
             <div class="search-container">
                 <h2>Search</h2>
                 <input type="text" id="tagSearchInput" placeholder="Enter tags (e.g., nature landscape)">
-                <button id="searchButton">Search</button>
+                <button id="searchButton">Search Tags</button> <!-- Renamed for clarity -->
             </div>
+
+            <div class="advanced-search-container">
+                <h2>Advanced Search</h2>
+                <div class="filter-group">
+                    <label for="filterDateAfter">Uploaded After:</label>
+                    <input type="date" id="filterDateAfter" name="filterDateAfter">
+                </div>
+                <div class="filter-group">
+                    <label for="filterDateBefore">Uploaded Before:</label>
+                    <input type="date" id="filterDateBefore" name="filterDateBefore">
+                </div>
+                <div class="filter-group">
+                    <label for="filterMinScore">Min Score:</label>
+                    <input type="number" id="filterMinScore" name="filterMinScore" placeholder="e.g., 10">
+                </div>
+                <!-- Max Score could be added if desired -->
+                <div class="filter-group">
+                    <label for="filterMinWidth">Min Width:</label>
+                    <input type="number" id="filterMinWidth" name="filterMinWidth" placeholder="e.g., 1920">
+                </div>
+                <div class="filter-group">
+                    <label for="filterMinHeight">Min Height:</label>
+                    <input type="number" id="filterMinHeight" name="filterMinHeight" placeholder="e.g., 1080">
+                </div>
+                <!-- Max Width/Height could be added -->
+                <div class="filter-group">
+                    <label for="filterUploader">Uploader:</label>
+                    <input type="text" id="filterUploader" name="filterUploader" placeholder="Username">
+                </div>
+                <button id="applyAdvancedSearchButton">Apply Advanced Filters</button>
+            </div>
+
             <div id="tag-display-area">
                 <h3>Tags</h3>
                 <input type="text" id="sidebarTagFilter" placeholder="Filter tags..." style="width: calc(100% - 1em); margin-bottom: 0.75em; padding: 0.4em 0.5em; border-radius: 3px; border: 1px solid var(--input-border-color); background-color: var(--input-bg-color); color: var(--text-color);">
@@ -154,6 +186,12 @@
                         <option value="50">50</option>
                         <option value="100">100</option>
                     </select>
+                    <div class="thumbnail-size-options" style="margin-left: 1rem;">
+                        <span>Size:</span>
+                        <button data-size="small" class="thumbnail-size-button button-sm">S</button>
+                        <button data-size="medium" class="thumbnail-size-button button-sm active">M</button>
+                        <button data-size="large" class="thumbnail-size-button button-sm">L</button>
+                    </div>
                 </div>
             </div>
             <div id="galleryContainer" class="gallery-grid">
