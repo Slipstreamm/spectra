@@ -3,6 +3,7 @@ from pydantic import BaseModel as PydanticBaseModel, Field, HttpUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
 from typing import Optional, List, Any, Dict
+from urllib.parse import quote_plus
 
 # Define the path to the config.toml file, assuming it's in the 'backend' directory
 # __file__ is .../backend/app/core/config.py
@@ -109,7 +110,8 @@ class Settings(BaseSettings):
         # Construct DATABASE_URL after all settings are loaded
         if not self.DATABASE_URL: # If not set by ENV or .env or TOML (if DATABASE_URL was a direct TOML field)
             # asyncpg expects the scheme to be 'postgresql' or 'postgres', not 'postgresql+asyncpg'
-            self.DATABASE_URL = f"postgresql://{self.database.user}:{self.database.password}@{self.database.host}:{self.database.port}/{self.database.name}"
+            encoded_password = quote_plus(self.database.password)
+            self.DATABASE_URL = f"postgresql://{self.database.user}:{encoded_password}@{self.database.host}:{self.database.port}/{self.database.name}"
 
         # Construct REDIS_URL
         if not self.REDIS_URL:
