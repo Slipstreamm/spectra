@@ -46,7 +46,7 @@ class DatabaseSettings(PydanticBaseModel):
     port: int = 5432
     user: str = "postgres"
     password: str = "password"
-    name: str = "spectra_db"
+    name: str = "imageboard_db"
 
 class RedisSettings(PydanticBaseModel):
     host: str = "localhost"
