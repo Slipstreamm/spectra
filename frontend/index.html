@@ -9,11 +9,47 @@
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://spectra.slipstreamm.dev" /> <!-- Assuming this is still the target URL -->
     <meta name="theme-color" content="#333333"> <!-- Placeholder, will be dynamic with themes -->
+
+    <!-- Critical CSS for theme to prevent flash -->
+    <style>
+        html[data-theme="dark"] {
+            --bg-color: #1a1a1a;
+            --text-color: #e0e0e0;
+            --header-bg-color: #222;
+        }
+
+        html[data-theme="light"] {
+            --bg-color: #f4f4f4;
+            --text-color: #333;
+            --header-bg-color: #efefef;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            visibility: hidden;
+        }
+
+        header {
+            background-color: var(--header-bg-color);
+        }
+    </style>
+
     <!-- Apply theme immediately to prevent flash -->
     <script>
         (function() {
+            // Hide content until theme is applied
+            document.documentElement.classList.add('theme-initializing');
+
             const savedTheme = localStorage.getItem('spectraTheme') || 'dark';
             document.documentElement.setAttribute('data-theme', savedTheme);
+
+            // Make content visible once theme is set and CSS is loaded
+            window.addEventListener('DOMContentLoaded', function() {
+                document.body.style.visibility = 'visible';
+                document.documentElement.classList.remove('theme-initializing');
+            });
         })();
     </script>
     <link rel="stylesheet" href="style.css">

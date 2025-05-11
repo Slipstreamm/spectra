@@ -4,11 +4,53 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Post Detail - Spectra</title>
+
+    <!-- Critical CSS for theme to prevent flash -->
+    <style>
+        html[data-theme="dark"] {
+            --bg-color: #1a1a1a;
+            --text-color: #e0e0e0;
+            --header-bg-color: #222;
+            --card-bg-color: #2a2a2a;
+        }
+
+        html[data-theme="light"] {
+            --bg-color: #f4f4f4;
+            --text-color: #333;
+            --header-bg-color: #efefef;
+            --card-bg-color: #ffffff;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            visibility: hidden;
+        }
+
+        header {
+            background-color: var(--header-bg-color);
+        }
+
+        #postDetailContainer {
+            background-color: var(--card-bg-color);
+        }
+    </style>
+
     <!-- Apply theme immediately to prevent flash -->
     <script>
         (function() {
+            // Hide content until theme is applied
+            document.documentElement.classList.add('theme-initializing');
+
             const savedTheme = localStorage.getItem('spectraTheme') || 'dark';
             document.documentElement.setAttribute('data-theme', savedTheme);
+
+            // Make content visible once theme is set and CSS is loaded
+            window.addEventListener('DOMContentLoaded', function() {
+                document.body.style.visibility = 'visible';
+                document.documentElement.classList.remove('theme-initializing');
+            });
         })();
     </script>
     <link rel="stylesheet" href="style.css"> <!-- Main styles -->
