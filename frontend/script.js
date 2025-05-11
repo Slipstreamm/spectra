@@ -105,7 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            const response = await fetch(`${API_BASE_URL}/images/${queryParams}`);
+            const response = await fetch(`${API_BASE_URL}/posts/${queryParams}`); // Changed from /images/ to /posts/
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
