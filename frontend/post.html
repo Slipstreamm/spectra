@@ -4,6 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Post Detail - Spectra</title>
+    <!-- Apply theme immediately to prevent flash -->
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('spectraTheme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
+    </script>
     <link rel="stylesheet" href="style.css"> <!-- Main styles -->
     <link rel="stylesheet" href="post_style.css"> <!-- Post-specific styles -->
 </head>
@@ -28,10 +35,10 @@
     <main id="postDetailContainer">
         <article class="post-full-content">
             <div class="post-meta">
-                <span id="postUploader">By: ...</span> | 
+                <span id="postUploader">By: ...</span> |
                 <span id="postUploadedAt">Uploaded: ...</span>
             </div>
-            
+
             <div class="post-image-container">
                 <img id="postImage" src="" alt="Post Image">
             </div>

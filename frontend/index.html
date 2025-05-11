@@ -9,6 +9,13 @@
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://spectra.slipstreamm.dev" /> <!-- Assuming this is still the target URL -->
     <meta name="theme-color" content="#333333"> <!-- Placeholder, will be dynamic with themes -->
+    <!-- Apply theme immediately to prevent flash -->
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('spectraTheme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
+    </script>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>

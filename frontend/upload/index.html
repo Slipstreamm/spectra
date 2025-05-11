@@ -4,6 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Upload Image - Spectra Gallery</title>
+    <!-- Apply theme immediately to prevent flash -->
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('spectraTheme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
+    </script>
     <link rel="stylesheet" href="../style.css"> <!-- Link to main site's CSS for consistency -->
     <link rel="stylesheet" href="style.css">   <!-- Page-specific styles -->
 </head>
@@ -45,25 +52,6 @@
     </footer>
 
     <script src="script.js"></script>
-    <!-- Include a small script to apply theme from localStorage, similar to main page -->
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const savedTheme = localStorage.getItem('spectraTheme') || 'dark';
-            document.documentElement.setAttribute('data-theme', savedTheme);
-            
-            // If you want the theme toggle on this page to actually work,
-            // you'd need to duplicate or share the theme toggle logic.
-            // For now, it's just for inheriting the theme.
-            const themeToggleButton = document.getElementById('themeToggle');
-            if(themeToggleButton) {
-                themeToggleButton.addEventListener('click', () => {
-                    const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
-                    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-                    document.documentElement.setAttribute('data-theme', newTheme);
-                    localStorage.setItem('spectraTheme', newTheme);
-                });
-            }
-        });
-    </script>
+    <!-- Theme toggle functionality is now handled by the script in the head -->
 </body>
 </html>
