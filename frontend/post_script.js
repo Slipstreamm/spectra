@@ -7,6 +7,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const postTagsContainer = document.getElementById('postTags');
     const postVoteScoreElement = document.getElementById('postVoteScore');
     const postVoteSection = document.querySelector('.post-actions .vote-section');
+    const postIdDisplayElement = document.getElementById('postIdDisplay'); // New
+    const postFilesizeElement = document.getElementById('postFilesize'); // New
+    // const postDimensionsElement = document.getElementById('postDimensions'); // New - if dimensions are added
+    const downloadLinkElement = document.getElementById('downloadLink'); // New
 
     const commentsListElement = document.getElementById('commentsList');
     const commentCountElement = document.getElementById('commentCount');
@@ -80,42 +84,101 @@ document.addEventListener('DOMContentLoaded', () => {
         // postTitleElement.textContent = post.title || 'Untitled Post'; // Removed post title update
         const uploaderName = post.uploader ? post.uploader.username : 'Unknown';
         const uploaderRole = post.uploader && post.uploader.role ? post.uploader.role : '';
-        postUploaderElement.textContent = `By: ${uploaderName}${uploaderRole && uploaderRole !== 'user' ? ' (' + uploaderRole + ')' : ''}`;
-        postUploadedAtElement.textContent = `Uploaded: ${new Date(post.uploaded_at).toLocaleString()}`;
+        if(postUploaderElement) postUploaderElement.textContent = `By: ${uploaderName}${uploaderRole && uploaderRole !== 'user' ? ' (' + uploaderRole + ')' : ''}`;
+        if(postUploadedAtElement) postUploadedAtElement.textContent = `Uploaded: ${new Date(post.uploaded_at).toLocaleString()}`;
+        if(postIdDisplayElement) postIdDisplayElement.textContent = `ID: ${post.id}`;
 
-        if (post.image_url) {
-            postImageElement.src = post.image_url;
-            postImageElement.alt = post.title || post.filename || 'Post image';
-        } else if (post.filename) { // Fallback for older data or if image_url is not present
-             postImageElement.src = `${API_BASE_URL}/static/uploads/${post.filename}`;
-             postImageElement.alt = post.title || post.filename || 'Post image';
-        } else {
-            postImageElement.style.display = 'none'; // Hide if no image source
+        if(postFilesizeElement && post.filesize) {
+            let sizeStr;
+            if (post.filesize > 1024 * 1024) {
+                sizeStr = (post.filesize / (1024 * 1024)).toFixed(2) + ' MB';
+            } else if (post.filesize > 1024) {
+                sizeStr = (post.filesize / 1024).toFixed(2) + ' KB';
+            } else {
+                sizeStr = post.filesize + ' Bytes';
+            }
+            postFilesizeElement.textContent = `Size: ${sizeStr}`;
+        } else if (postFilesizeElement) {
+            postFilesizeElement.textContent = 'Size: N/A';
         }
 
-        postDescriptionTextElement.textContent = post.description || 'No description provided.';
+        // Placeholder for dimensions - uncomment and populate if width/height are added to backend
+        // if(postDimensionsElement && post.width && post.height) {
+        //     postDimensionsElement.textContent = `Dimensions: ${post.width}x${post.height}`;
+        // } else if (postDimensionsElement) {
+        //     postDimensionsElement.textContent = 'Dimensions: N/A';
+        // }
 
-        postTagsContainer.innerHTML = '';
-        if (post.tags && post.tags.length > 0) {
-            post.tags.forEach(tag => {
-                const tagSpan = document.createElement('span');
-                tagSpan.textContent = tag.name;
-                // Optional: Make tags clickable to go to main gallery with tag filter
-                tagSpan.addEventListener('click', () => {
-                    window.location.href = `index.html?tags=${encodeURIComponent(tag.name)}`;
-                });
-                postTagsContainer.appendChild(tagSpan);
-            });
+        if (post.image_url) {
+            if(postImageElement) postImageElement.src = post.image_url;
+            if(downloadLinkElement) {
+                downloadLinkElement.href = post.image_url;
+                // Suggest a filename for download, using post title or original filename
+                const downloadFilename = post.title ? post.title.replace(/[^a-z0-9_.-]/gi, '_') + '.' + post.filename.split('.').pop() : post.filename;
+                downloadLinkElement.download = downloadFilename || 'image';
+            }
+            if(postImageElement) postImageElement.alt = post.title || post.filename || 'Post image';
+        } else if (post.filename) { // Fallback for older data or if image_url is not present
+             if(postImageElement) postImageElement.src = `${API_BASE_URL}/static/uploads/${post.filename}`;
+             if(postImageElement) postImageElement.alt = post.title || post.filename || 'Post image';
+             if(downloadLinkElement) { // Also set download link for fallback
+                downloadLinkElement.href = `${API_BASE_URL}/static/uploads/${post.filename}`;
+                const downloadFilename = post.title ? post.title.replace(/[^a-z0-9_.-]/gi, '_') + '.' + post.filename.split('.').pop() : post.filename;
+                downloadLinkElement.download = downloadFilename || 'image';
+             }
         } else {
-            postTagsContainer.textContent = 'No tags.';
+            if(postImageElement) postImageElement.style.display = 'none'; // Hide if no image source
+            if(downloadLinkElement) downloadLinkElement.style.display = 'none'; // Hide download if no image
+        }
+
+        if(postDescriptionTextElement) postDescriptionTextElement.textContent = post.description || 'No description provided.';
+
+        if(postTagsContainer) {
+            postTagsContainer.innerHTML = '';
+            if (post.tags && post.tags.length > 0) {
+                post.tags.forEach(tag => {
+                    const tagSpan = document.createElement('span');
+                    tagSpan.textContent = tag.name;
+                    // Optional: Make tags clickable to go to main gallery with tag filter
+                    tagSpan.addEventListener('click', () => {
+                        window.location.href = `index.html?tags=${encodeURIComponent(tag.name)}`;
+                    });
+                    postTagsContainer.appendChild(tagSpan);
+                });
+            } else {
+                postTagsContainer.textContent = 'No tags.';
+            }
         }
 
         updateVoteDisplay('post', post.id, post.upvotes, post.downvotes, post.user_vote);
-        postVoteSection.dataset.targetId = post.id; // Set target ID for voting
+        if(postVoteSection) postVoteSection.dataset.targetId = post.id; // Set target ID for voting
     }
 
     // --- Voting Logic ---
     function updateVoteDisplay(targetType, targetId, upvotes, downvotes, userVote) {
+        const scoreElement = targetType === 'post' ? postVoteScoreElement : document.querySelector(`.comment-item[data-comment-id="${targetId}"] .vote-score`);
+        const voteSectionElement = targetType === 'post' ? postVoteSection : document.querySelector(`.comment-item[data-comment-id="${targetId}"] .vote-section`);
+
+        if (scoreElement) {
+            scoreElement.textContent = (upvotes || 0) - (downvotes || 0);
+        }
+
+        if (voteSectionElement) {
+            const upvoteButton = voteSectionElement.querySelector('.upvote');
+            const downvoteButton = voteSectionElement.querySelector('.downvote');
+
+            if(upvoteButton) upvoteButton.classList.remove('active');
+            if(downvoteButton) downvoteButton.classList.remove('active');
+
+            if (userVote === 1) { // Upvoted
+                if(upvoteButton) upvoteButton.classList.add('active');
+            } else if (userVote === -1) { // Downvoted
+                if(downvoteButton) downvoteButton.classList.add('active');
+            }
+        }
+    }
+
+    async function handleVote(event) {
         const scoreElement = targetType === 'post' ? postVoteScoreElement : document.querySelector(`.comment-item[data-comment-id="${targetId}"] .vote-score`);
         const voteSectionElement = targetType === 'post' ? postVoteSection : document.querySelector(`.comment-item[data-comment-id="${targetId}"] .vote-section`);
 

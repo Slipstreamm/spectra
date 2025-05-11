@@ -108,7 +108,13 @@
         <article class="post-full-content">
             <div class="post-meta">
                 <span id="postUploader">By: ...</span> |
-                <span id="postUploadedAt">Uploaded: ...</span>
+                <span id="postUploadedAt">Uploaded: ...</span> |
+                <span id="postIdDisplay">ID: ...</span>
+            </div>
+            <div class="post-details-extra" style="margin-bottom: 1rem; font-size: 0.9rem; color: var(--secondary-color);">
+                <span id="postFilesize">Size: ...</span> 
+                <!-- Dimensions can be added here if available from backend later -->
+                <!-- | <span id="postDimensions">Dimensions: ...</span> -->
             </div>
 
             <div class="post-image-container">
@@ -129,10 +135,14 @@
 
             <div class="post-actions">
                 <h3>Actions</h3>
-                <div class="vote-section" data-target-type="post">
-                    <button class="vote-button upvote" data-vote-type="upvote">Upvote</button>
-                    <span class="vote-score" id="postVoteScore">0</span>
-                    <button class="vote-button downvote" data-vote-type="downvote">Downvote</button>
+                <div class="action-buttons-container" style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
+                    <div class="vote-section" data-target-type="post" style="margin-right: 15px;">
+                        <button class="vote-button upvote" data-vote-type="upvote">Upvote</button>
+                        <span class="vote-score" id="postVoteScore">0</span>
+                        <button class="vote-button downvote" data-vote-type="downvote">Downvote</button>
+                    </div>
+                    <a href="#" id="downloadLink" class="button" download style="text-decoration: none;">Download Original</a>
+                    <!-- Add other action buttons here later e.g. Favorite, Edit, Report -->
                 </div>
             </div>
         </article>
