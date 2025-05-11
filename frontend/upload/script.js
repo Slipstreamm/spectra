@@ -7,6 +7,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const API_BASE_URL = '/api/v1'; // Adjust if your API prefix is different
 
+    function getAuthToken() {
+        return localStorage.getItem('authToken');
+    }
+
     // Apply theme from localStorage (copied from main page for consistency)
     // This script block is also in upload/index.html, but good to have here if that's removed.
     const savedTheme = localStorage.getItem('spectraTheme') || 'dark';
@@ -28,6 +32,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (uploadForm) {
         uploadForm.addEventListener('submit', async (event) => {
             event.preventDefault();
+
+            const token = getAuthToken();
+            if (!token) {
+                uploadStatusDiv.textContent = 'You must be logged in to upload. Please login and try again.';
+                uploadStatusDiv.className = 'upload-status error';
+                // Optionally redirect to login page: window.location.href = '/login.html';
+                return;
+            }
+
             if (!imageFileIn.files || imageFileIn.files.length === 0) {
                 uploadStatusDiv.textContent = 'Please select an image file.';
                 uploadStatusDiv.className = 'upload-status error';
@@ -47,12 +60,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
             try {
                 // The endpoint for creating posts (which includes upload) is /api/v1/posts/
+                const headers = {};
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+
                 const response = await fetch(`${API_BASE_URL}/posts/`, {
                     method: 'POST',
                     body: formData,
+                    headers: headers
                     // 'Content-Type': 'multipart/form-data' is automatically set by browser for FormData
-                    // If your backend requires authentication for uploads, add Authorization header here:
-                    // headers: { 'Authorization': `Bearer ${your_auth_token}` }
                 });
 
                 const result = await response.json();

@@ -16,14 +16,30 @@ document.addEventListener('DOMContentLoaded', () => {
     const submitCommentButton = document.getElementById('submitComment');
     const commentErrorElement = document.getElementById('commentError');
 
+    // Header Auth DOM Elements (using "Header" suffix from post.html)
+    const themeToggleHeaderButton = document.getElementById('themeToggleHeader');
+    const loginLinkHeader = document.getElementById('loginLinkHeader');
+    const registerLinkHeader = document.getElementById('registerLinkHeader');
+    const logoutLinkHeader = document.getElementById('logoutLinkHeader');
+    const userInfoHeaderDisplay = document.getElementById('userInfoHeader');
+    const usernameDisplayHeader = document.getElementById('usernameDisplayHeader');
+    
+    // Footer year
+    const currentYearElement = document.getElementById('currentYear');
+
+
     // API and App State
     const API_BASE_URL = '/api/v1';
     let currentPostId = null;
-    let currentUser = null; // Will be populated if user is logged in
+    // let currentUser = null; // 'currentUser' was declared but not really used, getAuthToken and getUsername are preferred
 
     // --- Utility Functions ---
     function getAuthToken() {
         return localStorage.getItem('authToken'); // Assuming token is stored here after login
+    }
+
+    function getUsername() {
+        return localStorage.getItem('username'); // Assuming username is stored after login
     }
 
     async function fetchWithAuth(url, options = {}) {
@@ -218,7 +234,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="vote-score">${(comment.upvotes || 0) - (comment.downvotes || 0)}</span>
                         <button class="vote-button downvote" data-vote-type="downvote">Downvote</button>
                     </div>
-                    <!-- <button class="reply-button" data-comment-id="${comment.id}">Reply</button> -->
+                    <button class="reply-button" data-comment-id="${comment.id}" data-commenter-username="${commenterUsername}">Reply</button>
                 </div>
             `;
             // Add event listener for comment votes
@@ -227,8 +243,29 @@ document.addEventListener('DOMContentLoaded', () => {
             // Update initial vote display for the comment
             updateVoteDisplay('comment', comment.id, comment.upvotes, comment.downvotes, comment.user_vote);
 
+            // Add event listener for reply button
+            const replyButton = commentItem.querySelector('.reply-button');
+            if (replyButton) {
+                replyButton.addEventListener('click', handleReplyClick);
+            }
+
             commentsListElement.appendChild(commentItem);
         });
+    }
+
+    function handleReplyClick(event) {
+        if (!getAuthToken()) {
+            alert('Please log in to reply.');
+            return;
+        }
+        const targetCommentId = event.target.dataset.commentId;
+        const commenterUsername = event.target.dataset.commenterUsername;
+        console.log(`Reply clicked for comment ID: ${targetCommentId} by ${commenterUsername}`);
+        // Future: Pre-fill comment form, set parent_comment_id, scroll to form.
+        commentTextElement.value = `@${commenterUsername} `;
+        commentTextElement.focus();
+        // Store targetCommentId somewhere accessible by the submit handler, e.g., a global variable or a data attribute on the form.
+        commentForm.dataset.replyToCommentId = targetCommentId; 
     }
 
     commentForm.addEventListener('submit', async (event) => {
@@ -256,7 +293,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const payload = { content: content };
-            // parent_comment_id can be added here if replying to a specific comment
+            const replyToCommentId = commentForm.dataset.replyToCommentId;
+
+            if (replyToCommentId) {
+                payload.parent_id = parseInt(replyToCommentId);
+            }
             
             await fetchWithAuth(`${API_BASE_URL}/posts/${currentPostId}/comments/`, {
                 method: 'POST',
@@ -264,6 +305,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             
             commentTextElement.value = ''; // Clear textarea
+            delete commentForm.dataset.replyToCommentId; // Clear reply state
             await loadComments(currentPostId); // Refresh comments list
         } catch (error) {
             console.error('Error posting comment:', error);
@@ -288,13 +330,95 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         // Check auth status and update UI (e.g., show/hide comment form, login links)
-        // This part will be more fleshed out in Part C.
+        updateAuthUI(); // Call this to set header links too
+        
         if (!getAuthToken()) {
-            commentForm.style.display = 'none'; // Hide comment form if not logged in
-            const placeholder = document.createElement('p');
-            placeholder.innerHTML = 'You must be <a href="/login.html">logged in</a> to comment or vote.'; // Assuming login.html
-            commentsListElement.insertAdjacentElement('afterend', placeholder);
+            if (commentForm) commentForm.style.display = 'none'; // Hide comment form if not logged in
+            
+            const authMessageElement = document.getElementById('authMessagePlaceholder');
+            if (authMessageElement) { // If placeholder exists, update it
+                authMessageElement.innerHTML = 'You must be <a href="login.html">logged in</a> to comment or vote.';
+            } else { // Otherwise, create and append it
+                const placeholder = document.createElement('p');
+                placeholder.id = 'authMessagePlaceholder';
+                placeholder.className = 'status-message'; // Use existing class for styling
+                placeholder.innerHTML = 'You must be <a href="login.html">logged in</a> to comment or vote.'; // Assuming login.html
+                if (commentsListElement) commentsListElement.insertAdjacentElement('afterend', placeholder);
+            }
+        } else {
+             if (commentForm) commentForm.style.display = 'block';
+             const authMessageElement = document.getElementById('authMessagePlaceholder');
+             if (authMessageElement) authMessageElement.style.display = 'none'; // Hide if user is logged in
         }
+
+        // Theme toggle logic (moved from inline script)
+        if (themeToggleHeaderButton) {
+            themeToggleHeaderButton.addEventListener('click', () => {
+                const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                document.documentElement.setAttribute('data-theme', newTheme);
+                localStorage.setItem('spectraTheme', newTheme);
+                // If server-side theme config is used, it would need fetching like in main script.js
+                // For simplicity, this page's theme toggle only handles local localStorage and attribute
+            });
+        }
+        // Apply stored theme preference on load
+        const preferredTheme = localStorage.getItem('spectraTheme') || 'dark';
+        document.documentElement.setAttribute('data-theme', preferredTheme);
+
+        // Set footer year (moved from inline script)
+        if (currentYearElement) {
+            currentYearElement.textContent = new Date().getFullYear();
+        }
+    }
+    
+    // --- Header Authentication UI Update ---
+    // (Similar to script.js, but targets header elements)
+    function updateAuthUI() {
+        const token = getAuthToken();
+        const username = getUsername();
+
+        if (token && username) {
+            if(loginLinkHeader) loginLinkHeader.style.display = 'none';
+            if(registerLinkHeader) registerLinkHeader.style.display = 'none';
+            if(logoutLinkHeader) logoutLinkHeader.style.display = 'inline-block';
+            if(userInfoHeaderDisplay) userInfoHeaderDisplay.style.display = 'inline';
+            if(usernameDisplayHeader) usernameDisplayHeader.textContent = username;
+        } else {
+            if(loginLinkHeader) loginLinkHeader.style.display = 'inline-block';
+            if(registerLinkHeader) registerLinkHeader.style.display = 'inline-block';
+            if(logoutLinkHeader) logoutLinkHeader.style.display = 'none';
+            if(userInfoHeaderDisplay) userInfoHeaderDisplay.style.display = 'none';
+            if(usernameDisplayHeader) usernameDisplayHeader.textContent = '';
+        }
+    }
+
+    function handleLogout() {
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('username');
+        updateAuthUI(); // Update header UI
+        // Also update comment form visibility on this page
+        if (commentForm) commentForm.style.display = 'none';
+        const authMessageElement = document.getElementById('authMessagePlaceholder');
+        if (authMessageElement) {
+            authMessageElement.innerHTML = 'You have been logged out. You must be <a href="login.html">logged in</a> to comment or vote.';
+            authMessageElement.style.display = 'block';
+        } else {
+            const placeholder = document.createElement('p');
+            placeholder.id = 'authMessagePlaceholder';
+            placeholder.className = 'status-message';
+            placeholder.innerHTML = 'You have been logged out. You must be <a href="login.html">logged in</a> to comment or vote.';
+            if (commentsListElement) commentsListElement.insertAdjacentElement('afterend', placeholder);
+        }
+        // No full page reload, just update UI elements on the current page.
+        // Or, redirect to home: window.location.href = 'index.html';
+    }
+
+    if (logoutLinkHeader) {
+        logoutLinkHeader.addEventListener('click', (event) => {
+            event.preventDefault();
+            handleLogout();
+        });
     }
 
     init();

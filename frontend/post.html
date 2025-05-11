@@ -11,9 +11,16 @@
     <header>
         <div class="header-content">
             <h1 class="site-title"><a href="index.html">Spectra</a></h1>
+            <nav class="main-nav"> <!-- Added for consistency with index.html -->
+                <a href="index.html">Gallery</a>
+                <a href="upload/index.html">Upload</a>
+            </nav>
             <div class="user-actions">
-                <button id="themeToggle">Toggle Theme</button>
-                <!-- Auth links will be added later -->
+                <button id="themeToggleHeader">Toggle Theme</button> <!-- Renamed ID to avoid conflict if script.js is also loaded -->
+                <span id="userInfoHeader" style="display:none;" class="user-info-display">Logged in as: <strong id="usernameDisplayHeader"></strong></span>
+                <a href="login.html" id="loginLinkHeader" class="user-link">Login</a>
+                <a href="register.html" id="registerLinkHeader" class="user-link">Register</a>
+                <a href="#" id="logoutLinkHeader" style="display:none;" class="user-link">Logout</a>
             </div>
         </div>
     </header>
@@ -73,18 +80,6 @@
     </footer>
 
     <script src="post_script.js"></script>
-    <script>
-        // Small script for theme toggle and year, similar to index.html
-        document.getElementById('themeToggle').addEventListener('click', () => {
-            const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
-            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-            document.documentElement.setAttribute('data-theme', newTheme);
-            localStorage.setItem('spectraTheme', newTheme);
-            // If server-side theme config is used, it would need fetching like in main script.js
-        });
-        const preferredTheme = localStorage.getItem('spectraTheme') || 'dark';
-        document.documentElement.setAttribute('data-theme', preferredTheme);
-        document.getElementById('currentYear').textContent = new Date().getFullYear();
-    </script>
+    <!-- Removed inline script for theme toggle and year, will be handled by post_script.js for consistency -->
 </body>
 </html>

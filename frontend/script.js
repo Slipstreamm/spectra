@@ -11,6 +11,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const modalUploadedAt = document.getElementById('modalUploadedAt');
     const modalTagsContainer = document.getElementById('modalTags');
     const closeModalButton = imageModal.querySelector('.close-button');
+    // Auth-related DOM Elements
+    const loginLink = document.getElementById('loginLink');
+    const registerLink = document.getElementById('registerLink');
+    const logoutLink = document.getElementById('logoutLink');
+    const userInfoDisplay = document.getElementById('userInfo');
+    const usernameDisplay = document.getElementById('usernameDisplay');
+    // const accountLink = document.getElementById('accountLink');
+
 
     // API and App State
     const API_BASE_URL = '/api/v1'; // Assuming backend is served from the same host
@@ -91,6 +99,51 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initial theme load
     loadAndApplyThemePreference();
 
+    // --- Authentication Handling ---
+    function getAuthToken() {
+        return localStorage.getItem('authToken');
+    }
+
+    function getUsername() {
+        return localStorage.getItem('username'); // Assuming username is stored after login
+    }
+
+    function updateAuthUI() {
+        const token = getAuthToken();
+        const username = getUsername();
+
+        if (token && username) {
+            loginLink.style.display = 'none';
+            registerLink.style.display = 'none';
+            logoutLink.style.display = 'inline-block'; // Or 'block'
+            userInfoDisplay.style.display = 'inline'; // Or 'block'
+            usernameDisplay.textContent = username;
+            // if (accountLink) accountLink.style.display = 'inline-block';
+        } else {
+            loginLink.style.display = 'inline-block';
+            registerLink.style.display = 'inline-block';
+            logoutLink.style.display = 'none';
+            userInfoDisplay.style.display = 'none';
+            usernameDisplay.textContent = '';
+            // if (accountLink) accountLink.style.display = 'none';
+        }
+    }
+
+    function handleLogout() {
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('username');
+        // Potentially call a backend logout endpoint if it exists and is necessary
+        // e.g., await fetch(`${API_BASE_URL}/auth/logout`, { method: 'POST', headers: {'Authorization': `Bearer ${token}`} });
+        updateAuthUI();
+        window.location.reload(); // Reload to clear any user-specific state or redirect
+    }
+
+    if (logoutLink) {
+        logoutLink.addEventListener('click', (event) => {
+            event.preventDefault();
+            handleLogout();
+        });
+    }
 
     // --- Image Fetching and Rendering ---
     async function fetchImages(tags = '', page = 1) {
@@ -284,4 +337,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // The old upload form logic is removed as per the new design focus.
     // If upload functionality is needed on this page, it would need to be re-integrated.
+
+    // --- Initialize Auth UI ---
+    updateAuthUI(); 
 });
