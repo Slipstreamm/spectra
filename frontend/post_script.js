@@ -1,6 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
     // DOM Elements
-    const postTitleElement = document.getElementById('postTitle');
     const postUploaderElement = document.getElementById('postUploader');
     const postUploadedAtElement = document.getElementById('postUploadedAt');
     const postImageElement = document.getElementById('postImage');
@@ -68,7 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const post = await fetchWithAuth(`${API_BASE_URL}/posts/${postId}`);
             renderPost(post);
-            await loadComments(postId); // Load comments after post is loaded
+            await loadComments(postId, post.comment_count); // Load comments after post is loaded, passing comment_count
         } catch (error) {
             console.error('Error loading post details:', error);
             document.getElementById('postDetailContainer').innerHTML =
@@ -78,7 +77,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderPost(post) {
         currentPostId = post.id;
-        postTitleElement.textContent = post.title || 'Untitled Post';
+        // postTitleElement.textContent = post.title || 'Untitled Post'; // Removed post title update
         const uploaderName = post.uploader ? post.uploader.username : 'Unknown';
         const uploaderRole = post.uploader && post.uploader.role ? post.uploader.role : '';
         postUploaderElement.textContent = `By: ${uploaderName}${uploaderRole && uploaderRole !== 'user' ? ' (' + uploaderRole + ')' : ''}`;
@@ -212,15 +211,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // --- Comments Logic ---
-    async function loadComments(postId) {
+    async function loadComments(postId, knownCommentCount) { // Added knownCommentCount
         commentsListElement.innerHTML = '<p class="status-message">Loading comments...</p>';
         try {
-            const commentsData = await fetchWithAuth(`${API_BASE_URL}/posts/${postId}/comments/`);
-            renderComments(commentsData.data || []);
-            commentCountElement.textContent = commentsData.total_items || 0;
+            const commentsArray = await fetchWithAuth(`${API_BASE_URL}/posts/${postId}/comments/`); // API returns an array
+            renderComments(commentsArray || []); // Pass the array directly to renderComments
+            commentCountElement.textContent = knownCommentCount !== undefined ? knownCommentCount : (commentsArray ? commentsArray.length : 0);
         } catch (error) {
             console.error('Error loading comments:', error);
             commentsListElement.innerHTML = `<p class="status-message error-message">Error loading comments: ${error.message}</p>`;
+            commentCountElement.textContent = 'Error'; // Indicate error in count
         }
     }
 
