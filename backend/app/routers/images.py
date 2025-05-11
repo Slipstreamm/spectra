@@ -47,7 +47,7 @@ def get_image_url(request: Request, filename: str) -> str:
 
 
 @router.post("/upload/", response_model=models.Image, status_code=201)
-@limiter.limit(settings.UPLOAD_RATE_LIMIT) # Apply specific rate limit for uploads using the imported limiter
+@limiter.limit(settings.security.upload_rate_limit) # Apply specific rate limit for uploads using the imported limiter
 async def upload_image(
     request: Request, # Add request for rate limiter
     file: UploadFile = File(...),

@@ -17,28 +17,80 @@ document.addEventListener('DOMContentLoaded', () => {
     const IMAGES_PER_PAGE = 20; // Or get from backend if configurable
     let currentPage = 1;
     let currentTags = '';
+    let serverThemeConfig = null; // To store fetched theme config
 
-    // --- Theme Toggling ---
-    function applyTheme(theme) {
-        document.documentElement.setAttribute('data-theme', theme);
-        localStorage.setItem('spectraTheme', theme);
-        // Update theme-color meta tag if needed (more complex for dynamic themes)
-        // document.querySelector('meta[name="theme-color"]').setAttribute('content', theme === 'dark' ? '#333333' : '#ffffff');
+    // --- Theme Configuration and Toggling ---
+    function applyServerThemeColors(themeName, themeData) {
+        let styleSheet = document.getElementById('dynamic-theme-styles');
+        if (!styleSheet) {
+            styleSheet = document.createElement('style');
+            styleSheet.id = 'dynamic-theme-styles';
+            document.head.appendChild(styleSheet);
+        }
+
+        const themeColors = themeData[themeName];
+        if (!themeColors) {
+            console.warn(`Theme "${themeName}" not found in server configuration.`);
+            return;
+        }
+
+        const cssVariables = Object.entries(themeColors)
+            .map(([key, value]) => `--${key.replace(/_/g, '-')}: ${value};`)
+            .join('\n');
+        
+        styleSheet.innerHTML = `
+            html[data-theme="${themeName}"] {
+                ${cssVariables}
+            }
+        `;
+        // console.log(`Applied ${themeName} theme from server config.`);
     }
+
+    async function loadAndApplyThemePreference() {
+        try {
+            const response = await fetch(`${API_BASE_URL}/theme-config`);
+            if (!response.ok) {
+                console.error('Failed to fetch theme configuration from server.');
+                // Fallback to local theme application without server colors
+                applyLocalThemePreference();
+                return;
+            }
+            serverThemeConfig = await response.json();
+            // console.log('Server theme config loaded:', serverThemeConfig);
+            
+            const preferredTheme = localStorage.getItem('spectraTheme') || 'dark'; // Or server default from config.site.default_theme if exposed
+            applyServerThemeColors(preferredTheme, serverThemeConfig);
+            document.documentElement.setAttribute('data-theme', preferredTheme);
+
+        } catch (error) {
+            console.error('Error fetching or applying server theme configuration:', error);
+            applyLocalThemePreference(); // Fallback
+        }
+    }
+    
+    function applyLocalThemePreference() {
+        // This is a fallback if server config fails, uses CSS defaults
+        const preferredTheme = localStorage.getItem('spectraTheme') || 'dark';
+        document.documentElement.setAttribute('data-theme', preferredTheme);
+        // console.log(`Applied ${preferredTheme} theme using local preference (server config failed or not used).`);
+    }
+
 
     themeToggleButton.addEventListener('click', () => {
         const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
         const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-        applyTheme(newTheme);
+        
+        if (serverThemeConfig) {
+            applyServerThemeColors(newTheme, serverThemeConfig);
+        }
+        // Always set data-theme for CSS selectors and save preference
+        document.documentElement.setAttribute('data-theme', newTheme);
+        localStorage.setItem('spectraTheme', newTheme);
     });
 
-    // Load saved theme or default to dark
-    const savedTheme = localStorage.getItem('spectraTheme');
-    if (savedTheme) {
-        applyTheme(savedTheme);
-    } else {
-        applyTheme('dark'); // Default theme
-    }
+    // Initial theme load
+    loadAndApplyThemePreference();
+
 
     // --- Image Fetching and Rendering ---
     async function fetchImages(tags = '', page = 1) {

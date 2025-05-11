@@ -21,9 +21,9 @@ def get_request_identifier(request: Request) -> str:
     # Fallback to the direct client address if header is not present
     return get_remote_address(request)
 
-limiter = Limiter(key_func=get_request_identifier, default_limits=[settings.DEFAULT_RATE_LIMIT])
+limiter = Limiter(key_func=get_request_identifier, default_limits=[settings.security.default_rate_limit])
 
-app = FastAPI(title=settings.PROJECT_NAME)
+app = FastAPI(title=settings.site.name) # Use site name from config
 app.state.limiter = limiter # Add limiter to app state
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler) # Handle rate limit exceeded
 app.add_middleware(SlowAPIMiddleware) # Add SlowAPI middleware
@@ -117,9 +117,10 @@ async def shutdown_event():
         print("Redis connection pool resources released (if applicable).")
 
 # Further imports and API routers will be added here.
-from .routers import images, auth, admin # Import new routers
+from .routers import images, auth, admin, utils # Import new routers
 
 app.include_router(images.router, prefix=settings.API_V1_STR, tags=["Images"])
 app.include_router(auth.router, prefix=settings.API_V1_STR + "/auth", tags=["Authentication"])
 app.include_router(admin.router, prefix=settings.API_V1_STR + "/admin", tags=["Admin"])
+app.include_router(utils.router, prefix=settings.API_V1_STR, tags=["Utils"]) # Include utils router
 # app.include_router(tags.router, prefix=settings.API_V1_STR, tags=["Tags"]) # Include tags router when created

@@ -4,7 +4,9 @@ asyncpg
 redis[hiredis]
 python-multipart
 pydantic[email]
+pydantic-settings # For BaseSettings, good practice to specify
 slowapi
 python-magic
 passlib[bcrypt]
 python-jose[cryptography]
+toml
