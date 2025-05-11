@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tags - Spectra Gallery</title>
+    <meta property="og:title" content="Tags - Spectra Gallery" />
+    <meta property="og:description" content="Browse tags on Spectra." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://spectra.slipstreamm.dev/tags.html" />
+    <meta name="theme-color" content="#333333">
+
+    <!-- Critical CSS for theme to prevent flash (copied from index.html) -->
+    <style>
+        html[data-theme="dark"] {
+            --bg-color: #2E3440;
+            --text-color: #ECEFF4;
+            --header-bg-color: #3B4252;
+            --card-bg-color: #3B4252;
+            --border-color: #4C566A;
+            --button-bg-color: #5E81AC;
+            --button-text-color: #ECEFF4;
+            --input-bg-color: #3B4252;
+            --input-border-color: #4C566A;
+        }
+
+        html[data-theme="light"] {
+            --bg-color: #F8F9FA;
+            --text-color: #212529;
+            --header-bg-color: #E9ECEF;
+            --card-bg-color: #FFFFFF;
+            --border-color: #DEE2E6;
+            --button-bg-color: #6C757D;
+            --button-text-color: #FFFFFF;
+            --input-bg-color: #FFFFFF;
+            --input-border-color: #CED4DA;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+        }
+
+        header {
+            background-color: var(--header-bg-color);
+            padding: 0.75em 1em;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        button, .button {
+            background-color: var(--button-bg-color);
+            color: var(--button-text-color);
+            border: 1px solid var(--border-color);
+            padding: 0.5em 1em;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        input[type="text"], input[type="password"], input[type="email"], textarea {
+            background-color: var(--input-bg-color);
+            color: var(--text-color);
+            border: 1px solid var(--input-border-color);
+            padding: 0.5em;
+            border-radius: 4px;
+        }
+    </style>
+    <script data-cfasync="false">
+        (function() {
+            const savedTheme = localStorage.getItem('spectraTheme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
+    </script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <h1 class="site-title">Spectra Gallery</h1>
+            <nav class="main-nav">
+                <a href="index.html">Gallery</a>
+                <a href="upload/index.html">Upload</a>
+                <a href="tags.html" class="active">Tags</a>
+            </nav>
+            <div class="user-actions">
+                <button id="themeToggle">Toggle Theme</button>
+                <span id="userInfo" style="display:none;" class="user-info-display">Logged in as: <strong id="usernameDisplay"></strong></span>
+                <a href="login.html" id="loginLink" class="user-link">Login</a>
+                <a href="register.html" id="registerLink" class="user-link">Register</a>
+                <a href="#" id="logoutLink" style="display:none;" class="user-link">Logout</a>
+                <a href="account.html" id="accountLink" style="display:none;" class="user-link">My Account</a>
+            </div>
+        </div>
+    </header>
+
+    <div class="main-container">
+        <main id="content-area">
+            <h1>Tags Page</h1>
+            <p>This page will display tag browsing and management features.</p>
+            <!-- Tag browsing, filtering, sorting, and management UI will go here -->
+        </main>
+    </div>
+
+    <footer>
+        <p>&copy; 2024 Spectra Gallery. Inspired by minimalist designs.</p>
+        <p><a href="/admin/">Admin Panel</a></p>
+    </footer>
+
+    <script src="theme.js"></script>
+    <!-- Add specific script for tags page if needed: <script src="tags_script.js"></script> -->
+</body>
+</html>

@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const modalUploadedAt = document.getElementById('modalUploadedAt');
     const modalTagsContainer = document.getElementById('modalTags');
     const closeModalButton = imageModal.querySelector('.close-button');
+    const tagDisplayArea = document.getElementById('tag-display-area'); // Added for sidebar tags
     // Auth-related DOM Elements
     const loginLink = document.getElementById('loginLink');
     const registerLink = document.getElementById('registerLink');
@@ -265,8 +266,126 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
+    // --- Tag Sidebar Logic ---
+    async function fetchAndDisplayTags() {
+        if (!tagDisplayArea) return; // Sidebar might not be on all pages
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/tags/`);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const tagsWithCounts = await response.json(); // Expecting List[models.TagWithCount]
+
+            renderSidebarTags(tagsWithCounts);
+
+        } catch (error) {
+            console.error('Error fetching tags for sidebar:', error);
+            tagDisplayArea.innerHTML = '<p class="status-message">Error loading tags.</p>';
+        }
+    }
+
+    function renderSidebarTags(tagsWithCounts) {
+        tagDisplayArea.innerHTML = '<h3>Tags</h3>'; // Reset and add title
+
+        if (!tagsWithCounts || tagsWithCounts.length === 0) {
+            tagDisplayArea.innerHTML += '<p>No tags available.</p>';
+            return;
+        }
+
+        // Define categories and their prefixes
+        const categories = {
+            "Copyright": "copyright:",
+            "Character": "character:",
+            "Artist": "artist:",
+            // Add more specific categories if needed
+            // "Meta": "meta:", 
+        };
+        const generalTags = [];
+        const categorizedTags = {};
+
+        for (const categoryName in categories) {
+            categorizedTags[categoryName] = [];
+        }
+
+        tagsWithCounts.forEach(tag => {
+            let categorized = false;
+            for (const categoryName in categories) {
+                const prefix = categories[categoryName];
+                if (tag.name.startsWith(prefix)) {
+                    categorizedTags[categoryName].push({
+                        ...tag,
+                        displayName: tag.name.substring(prefix.length).replace(/_/g, ' ') // Clean display name
+                    });
+                    categorized = true;
+                    break;
+                }
+            }
+            if (!categorized) {
+                generalTags.push({ ...tag, displayName: tag.name.replace(/_/g, ' ') });
+            }
+        });
+
+        // Render categorized tags
+        for (const categoryName in categories) {
+            if (categorizedTags[categoryName].length > 0) {
+                const categoryDiv = document.createElement('div');
+                categoryDiv.className = 'tag-category';
+                const categoryTitle = document.createElement('h4');
+                categoryTitle.textContent = categoryName;
+                categoryDiv.appendChild(categoryTitle);
+
+                const ul = document.createElement('ul');
+                categorizedTags[categoryName]
+                    .sort((a, b) => b.post_count - a.post_count) // Sort by count within category
+                    .forEach(tag => {
+                        const li = document.createElement('li');
+                        const a = document.createElement('a');
+                        a.href = '#'; // Prevent page jump
+                        a.textContent = `${tag.displayName} (${tag.post_count})`;
+                        a.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            tagSearchInput.value = tag.name; // Use original tag name for search
+                            handleSearch();
+                        });
+                        li.appendChild(a);
+                        ul.appendChild(li);
+                    });
+                categoryDiv.appendChild(ul);
+                tagDisplayArea.appendChild(categoryDiv);
+            }
+        }
+
+        // Render general tags
+        if (generalTags.length > 0) {
+            const generalCategoryDiv = document.createElement('div');
+            generalCategoryDiv.className = 'tag-category';
+            const generalTitle = document.createElement('h4');
+            generalTitle.textContent = 'General';
+            generalCategoryDiv.appendChild(generalTitle);
+
+            const ul = document.createElement('ul');
+            generalTags
+                .sort((a, b) => b.post_count - a.post_count) // Sort by count
+                .forEach(tag => {
+                    const li = document.createElement('li');
+                    const a = document.createElement('a');
+                    a.href = '#';
+                    a.textContent = `${tag.displayName} (${tag.post_count})`;
+                    a.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        tagSearchInput.value = tag.name;
+                        handleSearch();
+                    });
+                    li.appendChild(a);
+                    ul.appendChild(li);
+                });
+            generalCategoryDiv.appendChild(ul);
+            tagDisplayArea.appendChild(generalCategoryDiv);
+        }
+    }
+
     // --- Initial Load ---
-    // Check for tags in URL query params (e.g., ?tags=nature,sky)
     const urlParams = new URLSearchParams(window.location.search);
     const initialTagsFromURL = urlParams.get('tags');
     if (initialTagsFromURL) {
@@ -275,6 +394,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
         fetchImages('', 1); // Load all images on page 1 initially
     }
+    fetchAndDisplayTags(); // Load tags for the sidebar
 
     // The old upload form logic is removed as per the new design focus.
     // If upload functionality is needed on this page, it would need to be re-integrated.

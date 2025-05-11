@@ -621,8 +621,45 @@ async def update_user_role(db: asyncpg.Connection, user_id: int, new_role: model
         
         # Construct the User model for the response.
         # is_superuser can be derived or kept as its current value if not directly managed by role alone.
-        # For simplicity, we'll rely on the User model's default or existing logic for is_superuser.
-        return models.User(**updated_record)
+    # For simplicity, we'll rely on the User model's default or existing logic for is_superuser.
+    return models.User(**updated_record)
+
+async def get_all_tags_with_counts(db: asyncpg.Connection, redis: redis_async.Redis) -> List[models.TagWithCount]:
+    """
+    Retrieves all tags along with the count of posts associated with each tag.
+    Results are cached.
+    """
+    cache_key = "all_tags_with_counts"
+    cached_data_json = await redis.get(cache_key)
+    if cached_data_json:
+        try:
+            tags_dict_list = json.loads(cached_data_json)
+            return [models.TagWithCount(**tag_dict) for tag_dict in tags_dict_list]
+        except (json.JSONDecodeError, TypeError) as e:
+            print(f"Error decoding/parsing cached all_tags_with_counts. Error: {e}. Fetching from DB.")
+
+    query = """
+        SELECT t.id, t.name, COUNT(pt.post_id) as post_count
+        FROM tags t
+        LEFT JOIN post_tags pt ON t.id = pt.tag_id
+        GROUP BY t.id, t.name
+        ORDER BY post_count DESC, t.name ASC;
+    """
+    tag_records = await db.fetch(query)
+    
+    tags_with_counts = []
+    if tag_records:
+        tags_with_counts = [
+            models.TagWithCount(id=record['id'], name=record['name'], post_count=record['post_count'])
+            for record in tag_records
+        ]
+        try:
+            cacheable_data = json_dumps([tag.model_dump() for tag in tags_with_counts])
+            await redis.set(cache_key, cacheable_data, ex=CACHE_EXPIRY_SECONDS * 2) # Longer expiry for general tag list
+        except Exception as e:
+            print(f"Error caching all_tags_with_counts: {e}")
+            
+    return tags_with_counts
 
 async def update_tags_for_posts(
     db: asyncpg.Connection,

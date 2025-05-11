@@ -27,6 +27,9 @@ class Tag(TagBase):
 
     model_config = {"from_attributes": True}
 
+class TagWithCount(Tag):
+    post_count: int
+
 # User models (essential for posts, comments, votes)
 class UserBase(BaseModel):
     email: str = Field(..., example="admin@example.com")
