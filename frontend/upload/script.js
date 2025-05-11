@@ -78,6 +78,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     uploadStatusDiv.textContent = `Upload successful! Image ID: ${result.id} (${result.filename})`;
                     uploadStatusDiv.className = 'upload-status success';
                     uploadForm.reset(); 
+                } else if (response.status === 429) {
+                    uploadStatusDiv.textContent = `Upload failed: Too many requests. Please try again later.`;
+                    uploadStatusDiv.className = 'upload-status error';
                 } else {
                     uploadStatusDiv.textContent = `Upload failed: ${result.detail || response.statusText || 'Unknown error'}`;
                     uploadStatusDiv.className = 'upload-status error';
