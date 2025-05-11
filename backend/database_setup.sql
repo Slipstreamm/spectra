@@ -42,8 +42,8 @@ CREATE TABLE IF NOT EXISTS users (
     username VARCHAR(50) UNIQUE NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     hashed_password VARCHAR(255) NOT NULL,
+    role VARCHAR(20) NOT NULL DEFAULT 'user', -- Added user role
     is_active BOOLEAN DEFAULT TRUE,
-    is_superuser BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -111,7 +111,7 @@ COMMENT ON COLUMN users.username IS 'Unique username for login.';
 COMMENT ON COLUMN users.email IS 'Unique email address for the user.';
 COMMENT ON COLUMN users.hashed_password IS 'Securely hashed password.';
 COMMENT ON COLUMN users.is_active IS 'Whether the user account is active and can log in.';
-COMMENT ON COLUMN users.is_superuser IS 'Whether the user has administrator privileges.';
+COMMENT ON COLUMN users.role IS 'User role (e.g., user, moderator, admin, owner).';
 COMMENT ON COLUMN users.created_at IS 'Timestamp when the user account was created.';
 
 COMMENT ON TABLE comments IS 'Stores comments made on posts.';

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Spectra</title>
+    <link rel="stylesheet" href="../style.css">
+    <link rel="stylesheet" href="auth_style.css"> <!-- Assuming a shared auth CSS -->
+</head>
+<body>
+    <header>
+        <div class="container">
+            <a href="../index.html" class="logo">Spectra</a>
+            <nav>
+                <!-- Auth links will be dynamically updated by script.js if loaded,
+                     but login page itself won't show user-specific links. -->
+                <a href="../index.html">Gallery</a>
+                <a href="register.html">Register</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container">
+        <section class="auth-form-container">
+            <h1>Login</h1>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="username">Username or Email:</label>
+                    <input type="text" id="username" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password:</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                <button type="submit" class="button">Login</button>
+                <p id="errorMessage" class="error-message" style="display: none;"></p>
+            </form>
+            <p>Don't have an account? <a href="register.html">Register here</a>.</p>
+        </section>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>&copy; <span id="currentYear"></span> Spectra. All rights reserved.</p>
+        </div>
+    </footer>
+    <script>
+        document.getElementById("currentYear").textContent = new Date().getFullYear();
+    </script>
+    <script src="login_script.js"></script>
+</body>
+</html>

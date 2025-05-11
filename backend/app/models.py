@@ -4,6 +4,14 @@
 from pydantic import BaseModel, HttpUrl, constr, Field, field_validator, model_validator
 from typing import List, Optional, ForwardRef, Dict, Any
 from datetime import datetime
+from enum import Enum
+
+# User Role Enum
+class UserRole(str, Enum):
+    owner = "owner"
+    admin = "admin"
+    moderator = "moderator"
+    user = "user"
 
 # ForwardRef for self-referencing Pydantic models (e.g., Comment replies)
 Comment = ForwardRef('Comment')
@@ -23,28 +31,40 @@ class Tag(TagBase):
 class UserBase(BaseModel):
     email: str = Field(..., example="admin@example.com")
     username: str = Field(..., min_length=3, max_length=50, example="admin_user")
+    role: UserRole = Field(default=UserRole.user, example=UserRole.user)
 
 class UserCreate(UserBase):
     password: str = Field(..., min_length=8, example="aSecurePassword123!")
-    is_superuser: bool = False
+    role: UserRole = UserRole.user # Default role for new sign-ups
+    is_superuser: bool = False # Can be derived from role later
 
 class UserUpdate(BaseModel):
     email: Optional[str] = None
     username: Optional[str] = None
     password: Optional[str] = None
     is_active: Optional[bool] = None
-    is_superuser: Optional[bool] = None
+    is_superuser: Optional[bool] = None # Potentially manage through role
+    role: Optional[UserRole] = None
 
 class User(UserBase):
     id: int
     is_active: bool = True
-    is_superuser: bool = False
+    is_superuser: bool = False # Potentially derive from role
     created_at: datetime
+    # role is inherited from UserBase
 
     model_config = {"from_attributes": True}
 
 class UserInDB(User):
     hashed_password: str
+
+# Token model for authentication responses
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class TokenData(BaseModel):
+    username: Optional[str] = None
 
 # Post models (renamed from Image)
 class PostBase(BaseModel):

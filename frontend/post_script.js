@@ -39,7 +39,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function getUsername() {
-        return localStorage.getItem('username'); // Assuming username is stored after login
+        return localStorage.getItem('username');
+    }
+
+    function getUserRole() {
+        return localStorage.getItem('userRole');
     }
 
     async function fetchWithAuth(url, options = {}) {
@@ -75,7 +79,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderPost(post) {
         currentPostId = post.id;
         postTitleElement.textContent = post.title || 'Untitled Post';
-        postUploaderElement.textContent = `By: ${post.uploader ? post.uploader.username : 'Unknown'}`;
+        const uploaderName = post.uploader ? post.uploader.username : 'Unknown';
+        const uploaderRole = post.uploader && post.uploader.role ? post.uploader.role : '';
+        postUploaderElement.textContent = `By: ${uploaderName}${uploaderRole && uploaderRole !== 'user' ? ' (' + uploaderRole + ')' : ''}`;
         postUploadedAtElement.textContent = `Uploaded: ${new Date(post.uploaded_at).toLocaleString()}`;
         
         if (post.image_url) {
@@ -219,12 +225,16 @@ document.addEventListener('DOMContentLoaded', () => {
             commentItem.className = 'comment-item';
             commentItem.dataset.commentId = comment.id;
 
-            const commenterUsername = comment.commenter ? comment.commenter.username : 'Anonymous';
+            // Use comment.user which is UserBase (includes role if backend sends it)
+            const commenterName = comment.user ? comment.user.username : 'Anonymous';
+            const commenterRole = comment.user && comment.user.role ? comment.user.role : '';
             const commentDate = new Date(comment.created_at).toLocaleString();
+            
+            const commenterDisplay = `${commenterName}${commenterRole && commenterRole !== 'user' ? ' (' + commenterRole + ')' : ''}`;
 
             commentItem.innerHTML = `
                 <div class="comment-meta">
-                    <span class="commenter-username">${commenterUsername}</span> - 
+                    <span class="commenter-username">${commenterDisplay}</span> - 
                     <span class="comment-timestamp">${commentDate}</span>
                 </div>
                 <p class="comment-content">${comment.content}</p>
@@ -246,6 +256,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // Add event listener for reply button
             const replyButton = commentItem.querySelector('.reply-button');
             if (replyButton) {
+                // Update dataset to use commenterName for @mention consistency
+                replyButton.dataset.commenterUsername = commenterName; 
                 replyButton.addEventListener('click', handleReplyClick);
             }
 
@@ -259,12 +271,10 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         const targetCommentId = event.target.dataset.commentId;
-        const commenterUsername = event.target.dataset.commenterUsername;
-        console.log(`Reply clicked for comment ID: ${targetCommentId} by ${commenterUsername}`);
-        // Future: Pre-fill comment form, set parent_comment_id, scroll to form.
-        commentTextElement.value = `@${commenterUsername} `;
+        const commenterUsernameForMention = event.target.dataset.commenterUsername; // Use the name part for @mention
+        
+        commentTextElement.value = `@${commenterUsernameForMention} `;
         commentTextElement.focus();
-        // Store targetCommentId somewhere accessible by the submit handler, e.g., a global variable or a data attribute on the form.
         commentForm.dataset.replyToCommentId = targetCommentId; 
     }
 
@@ -377,13 +387,14 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateAuthUI() {
         const token = getAuthToken();
         const username = getUsername();
+        const role = getUserRole(); // Get role
 
         if (token && username) {
             if(loginLinkHeader) loginLinkHeader.style.display = 'none';
             if(registerLinkHeader) registerLinkHeader.style.display = 'none';
             if(logoutLinkHeader) logoutLinkHeader.style.display = 'inline-block';
             if(userInfoHeaderDisplay) userInfoHeaderDisplay.style.display = 'inline';
-            if(usernameDisplayHeader) usernameDisplayHeader.textContent = username;
+            if(usernameDisplayHeader) usernameDisplayHeader.textContent = `${username} (${role || 'user'})`; // Display role
         } else {
             if(loginLinkHeader) loginLinkHeader.style.display = 'inline-block';
             if(registerLinkHeader) registerLinkHeader.style.display = 'inline-block';
@@ -391,13 +402,27 @@ document.addEventListener('DOMContentLoaded', () => {
             if(userInfoHeaderDisplay) userInfoHeaderDisplay.style.display = 'none';
             if(usernameDisplayHeader) usernameDisplayHeader.textContent = '';
         }
+        // Update comment form visibility based on auth status
+        if (getAuthToken()) {
+            if (commentForm) commentForm.style.display = 'block';
+            const authMessageElement = document.getElementById('authMessagePlaceholder');
+            if (authMessageElement) authMessageElement.style.display = 'none';
+        } else {
+            if (commentForm) commentForm.style.display = 'none';
+            const authMessageElement = document.getElementById('authMessagePlaceholder');
+            if (authMessageElement) {
+                 authMessageElement.innerHTML = 'You must be <a href="login.html">logged in</a> to comment or vote.';
+                 authMessageElement.style.display = 'block';
+            }
+        }
     }
 
     function handleLogout() {
         localStorage.removeItem('authToken');
         localStorage.removeItem('username');
-        updateAuthUI(); // Update header UI
-        // Also update comment form visibility on this page
+        localStorage.removeItem('userRole'); // Remove role
+        updateAuthUI(); // Update header UI and comment form visibility
+        // Also update comment form visibility on this page (already handled in updateAuthUI)
         if (commentForm) commentForm.style.display = 'none';
         const authMessageElement = document.getElementById('authMessagePlaceholder');
         if (authMessageElement) {

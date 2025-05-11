@@ -142,8 +142,8 @@ async def get_post(db: asyncpg.Connection, redis: redis_async.Redis, post_id: in
         SELECT
             p.id, p.filename, p.filepath, p.mimetype, p.filesize, p.title, p.description,
             p.uploaded_at, p.uploader_id,
-            u.username AS uploader_username, u.email AS uploader_email, u.is_active AS uploader_is_active,
-            u.is_superuser AS uploader_is_superuser, u.created_at AS uploader_created_at,
+            u.username AS uploader_username, u.email AS uploader_email, u.role AS uploader_role, u.is_active AS uploader_is_active,
+            u.created_at AS uploader_created_at, -- Removed uploader_is_superuser
             COALESCE((SELECT json_agg(json_build_object('id', t.id, 'name', t.name) ORDER BY t.name)
                       FROM tags t JOIN post_tags pt ON t.id = pt.tag_id WHERE pt.post_id = p.id), '[]'::json) AS tags,
             (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count,
@@ -161,8 +161,9 @@ async def get_post(db: asyncpg.Connection, redis: redis_async.Redis, post_id: in
     if post_record['uploader_id']:
         uploader_data = models.User(
             id=post_record['uploader_id'], username=post_record['uploader_username'], email=post_record['uploader_email'],
-            is_active=post_record['uploader_is_active'], is_superuser=post_record['uploader_is_superuser'],
+            role=post_record['uploader_role'], is_active=post_record['uploader_is_active'],
             created_at=post_record['uploader_created_at']
+            # is_superuser will be default False in User model, or derived if logic is added to model
         )
     db_post_model = models.Post(
         id=post_record['id'], filename=post_record['filename'], filepath=post_record['filepath'],
@@ -199,8 +200,8 @@ async def get_posts(
         SELECT
             p.id, p.filename, p.filepath, p.mimetype, p.filesize, p.title, p.description,
             p.uploaded_at, p.uploader_id,
-            u.username AS uploader_username, u.email AS uploader_email, u.is_active AS uploader_is_active,
-            u.is_superuser AS uploader_is_superuser, u.created_at AS uploader_created_at,
+            u.username AS uploader_username, u.email AS uploader_email, u.role AS uploader_role, u.is_active AS uploader_is_active,
+            u.created_at AS uploader_created_at, -- Removed uploader_is_superuser
             COALESCE((SELECT json_agg(json_build_object('id', t.id, 'name', t.name) ORDER BY t.name)
                       FROM tags t JOIN post_tags pt ON t.id = pt.tag_id WHERE pt.post_id = p.id), '[]'::json) AS tags,
             (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count,
@@ -236,8 +237,9 @@ async def get_posts(
         if record['uploader_id']:
             uploader_data = models.User(
                 id=record['uploader_id'], username=record['uploader_username'], email=record['uploader_email'],
-                is_active=record['uploader_is_active'], is_superuser=record['uploader_is_superuser'],
+                role=record['uploader_role'], is_active=record['uploader_is_active'],
                 created_at=record['uploader_created_at']
+                # is_superuser will be default False in User model, or derived
             )
         posts_list.append(models.Post(
             id=record['id'], filename=record['filename'], filepath=record['filepath'],
@@ -340,13 +342,13 @@ def conditions_to_str(conditions: List[str]) -> str:
 
 # User CRUD operations
 async def get_user_by_email(db: asyncpg.Connection, email: str) -> Optional[models.UserInDB]:
-    query = "SELECT id, username, email, hashed_password, is_active, is_superuser, created_at FROM users WHERE email = $1"
+    query = "SELECT id, username, email, hashed_password, role, is_active, created_at FROM users WHERE email = $1"
     user_record = await db.fetchrow(query, email)
     if user_record: return models.UserInDB(**user_record)
     return None
 
 async def get_user_by_username(db: asyncpg.Connection, username: str) -> Optional[models.UserInDB]:
-    query = "SELECT id, username, email, hashed_password, is_active, is_superuser, created_at FROM users WHERE username = $1"
+    query = "SELECT id, username, email, hashed_password, role, is_active, created_at FROM users WHERE username = $1"
     user_record = await db.fetchrow(query, username)
     if user_record: return models.UserInDB(**user_record)
     return None
@@ -358,18 +360,24 @@ async def create_user(db: asyncpg.Connection, user_in: models.UserCreate) -> mod
     existing_username_user = await get_user_by_username(db, user_in.username)
     if existing_username_user: raise ValueError(f"User with username {user_in.username} already exists.")
     query = """
-        INSERT INTO users (username, email, hashed_password, is_superuser, is_active)
+        INSERT INTO users (username, email, hashed_password, role, is_active)
         VALUES ($1, $2, $3, $4, TRUE)
-        RETURNING id, username, email, is_active, is_superuser, created_at
+        RETURNING id, username, email, role, is_active, created_at
     """
+    # user_in.is_superuser from UserCreate model is not directly inserted; role defines privileges.
+    # The UserCreate model defaults role to 'user' and is_superuser to False.
     user_record = await db.fetchrow(
-        query, user_in.username, user_in.email, hashed_password, user_in.is_superuser
+        query, user_in.username, user_in.email, hashed_password, user_in.role.value
     )
     if not user_record: raise Exception("Failed to create user.")
+    # models.User will get 'role' from UserBase. 'is_superuser' in models.User defaults to False.
+    # If is_superuser needs to be explicitly set based on role for the response model,
+    # it would be: models.User(**user_record, is_superuser=(user_record['role'] in [models.UserRole.admin, models.UserRole.owner]))
+    # For now, relying on the model's default for is_superuser and the presence of 'role'.
     return models.User(**user_record)
 
 async def get_user(db: asyncpg.Connection, user_id: int) -> Optional[models.UserInDB]: # Should return UserInDB for internal use
-    query = "SELECT id, username, email, hashed_password, is_active, is_superuser, created_at FROM users WHERE id = $1"
+    query = "SELECT id, username, email, hashed_password, role, is_active, created_at FROM users WHERE id = $1"
     user_record = await db.fetchrow(query, user_id)
     if user_record:
         return models.UserInDB(**user_record) # Return UserInDB as it contains hashed_password

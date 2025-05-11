@@ -105,35 +105,49 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function getUsername() {
-        return localStorage.getItem('username'); // Assuming username is stored after login
+        return localStorage.getItem('username');
+    }
+
+    function getUserRole() {
+        return localStorage.getItem('userRole');
     }
 
     function updateAuthUI() {
         const token = getAuthToken();
         const username = getUsername();
+        const role = getUserRole();
 
         if (token && username) {
             loginLink.style.display = 'none';
             registerLink.style.display = 'none';
-            logoutLink.style.display = 'inline-block'; // Or 'block'
-            userInfoDisplay.style.display = 'inline'; // Or 'block'
-            usernameDisplay.textContent = username;
-            // if (accountLink) accountLink.style.display = 'inline-block';
+            logoutLink.style.display = 'inline-block';
+            userInfoDisplay.style.display = 'inline';
+            usernameDisplay.textContent = `${username} (${role || 'user'})`; // Display role
+            // Example: Show admin link if user is admin or owner
+            // const adminDashboardLink = document.getElementById('adminDashboardLink'); // Assuming you add this link
+            // if (adminDashboardLink) {
+            //     if (role === 'admin' || role === 'owner') {
+            //         adminDashboardLink.style.display = 'inline-block';
+            //     } else {
+            //         adminDashboardLink.style.display = 'none';
+            //     }
+            // }
         } else {
             loginLink.style.display = 'inline-block';
             registerLink.style.display = 'inline-block';
             logoutLink.style.display = 'none';
             userInfoDisplay.style.display = 'none';
             usernameDisplay.textContent = '';
-            // if (accountLink) accountLink.style.display = 'none';
+            // const adminDashboardLink = document.getElementById('adminDashboardLink');
+            // if (adminDashboardLink) adminDashboardLink.style.display = 'none';
         }
     }
 
     function handleLogout() {
         localStorage.removeItem('authToken');
         localStorage.removeItem('username');
-        // Potentially call a backend logout endpoint if it exists and is necessary
-        // e.g., await fetch(`${API_BASE_URL}/auth/logout`, { method: 'POST', headers: {'Authorization': `Bearer ${token}`} });
+        localStorage.removeItem('userRole'); // Remove role on logout
+        // Potentially call a backend logout endpoint
         updateAuthUI();
         window.location.reload(); // Reload to clear any user-specific state or redirect
     }
@@ -205,7 +219,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // Uploader Info
             const uploaderElement = document.createElement('p');
             uploaderElement.className = 'post-uploader';
-            uploaderElement.textContent = `By: ${post.uploader ? post.uploader.username : 'Unknown'}`;
+            const uploaderName = post.uploader ? post.uploader.username : 'Unknown';
+            const uploaderRole = post.uploader && post.uploader.role ? post.uploader.role : '';
+            uploaderElement.textContent = `By: ${uploaderName}${uploaderRole && uploaderRole !== 'user' ? ' (' + uploaderRole + ')' : ''}`;
             infoDiv.appendChild(uploaderElement);
             
             // Comment Count

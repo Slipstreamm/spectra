@@ -1,19 +1,21 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer # Added OAuth2PasswordBearer
-from typing import Annotated
+from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
+from typing import Annotated, List
 import asyncpg
-from datetime import timedelta # Ensure timedelta is imported
+from datetime import timedelta
 
-from .. import models, crud # Corrected import path
-from ..core import security # Corrected import path
-from ..db import get_db_connection # Corrected import path and function name
-from ..core.config import settings # Corrected import path
+from .. import models, crud
+from ..core import security
+from ..db import get_db_connection
+from ..core.config import settings
+from ..models import UserRole # Import UserRole
 
 router = APIRouter()
 
-class Token(models.BaseModel):
-    access_token: str
-    token_type: str
+# Removed class Token(models.BaseModel) as it's defined in models.py
+# class Token(models.BaseModel):
+#     access_token: str
+#     token_type: str
 
 # OAuth2 scheme for token authentication
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/token")
@@ -34,42 +36,57 @@ async def get_current_user_from_token(
     if username is None:
         raise credentials_exception
     
-    user_in_db = await crud.get_user_by_username(db, username=username)
+    user_in_db = await crud.get_user_by_username(db, username=username) # Returns UserInDB
     if user_in_db is None:
         raise credentials_exception
-    # Return as User model (without hashed_password)
-    return models.User.model_validate(user_in_db)
+    
+    # Construct models.User from models.UserInDB
+    # UserInDB has 'role' and 'hashed_password'. User model has 'role' (from UserBase)
+    # and 'is_superuser' (defaults to False, can be derived from role if needed for response).
+    user_data = user_in_db.model_dump(exclude={"hashed_password"})
+    
+    # Explicitly set is_superuser based on role for the response model if desired
+    # user_data['is_superuser'] = user_in_db.role in [UserRole.admin, UserRole.owner]
+
+    return models.User(**user_data)
 
 async def get_current_active_user(
     current_user: Annotated[models.User, Depends(get_current_user_from_token)]
 ) -> models.User:
     if not current_user.is_active:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Inactive user") # Changed to 401 for consistency
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Inactive user")
     return current_user
 
-async def get_current_active_superuser(
-    current_user: Annotated[models.User, Depends(get_current_active_user)]
-) -> models.User:
-    if not current_user.is_superuser:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="The user doesn't have enough privileges" # Changed to 403
-        )
-    return current_user
+# Role-based access control dependencies
+def require_role(required_roles: List[UserRole]):
+    async def role_checker(current_user: Annotated[models.User, Depends(get_current_active_user)]) -> models.User:
+        if current_user.role not in required_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"User does not have the required role(s): {', '.join(r.value for r in required_roles)}"
+            )
+        return current_user
+    return role_checker
+
+# Specific role dependencies (examples)
+require_admin_owner = require_role([UserRole.admin, UserRole.owner])
+require_moderator_admin_owner = require_role([UserRole.moderator, UserRole.admin, UserRole.owner])
+require_owner = require_role([UserRole.owner])
 
 
-@router.post("/token", response_model=Token, tags=["Authentication"])
+@router.post("/token", response_model=models.Token, tags=["Authentication"]) # Use models.Token
 async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-    db: asyncpg.Connection = Depends(get_db_connection) # Use correct DB dependency
+    db: asyncpg.Connection = Depends(get_db_connection)
 ):
-    user = await crud.get_user_by_username(db, username=form_data.username)
+    user = await crud.get_user_by_username(db, username=form_data.username) # Returns UserInDB
     if not user or not security.verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    if not user.is_active:
+    if not user.is_active: # UserInDB has is_active
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user")
 
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -77,6 +94,36 @@ async def login_for_access_token(
         data={"sub": user.username}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
+
+@router.post("/register", response_model=models.User, status_code=status.HTTP_201_CREATED, tags=["Authentication"])
+async def register_user(
+    user_in: models.UserCreate,
+    db: asyncpg.Connection = Depends(get_db_connection)
+):
+    """
+    Create new user.
+    """
+    db_user_email = await crud.get_user_by_email(db, email=user_in.email)
+    if db_user_email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="An account with this email already exists.",
+        )
+    db_user_username = await crud.get_user_by_username(db, username=user_in.username)
+    if db_user_username:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="An account with this username already exists.",
+        )
+    
+    # UserCreate model now defaults role to 'user'
+    # user_in.role = UserRole.user # Ensure default role if not set by model
+    
+    try:
+        created_user = await crud.create_user(db=db, user_in=user_in)
+    except ValueError as e: # Catch potential errors from crud.create_user if any (though checks are above)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return created_user
 
 
 @router.get("/users/me", response_model=models.User, tags=["Users"])
@@ -89,11 +136,12 @@ async def read_users_me(
     return current_user
 
 # Example of a superuser-only endpoint (can be expanded in an admin router)
-@router.get("/users/me/superuser-test", response_model=models.User, tags=["Users"])
-async def read_superuser_me(
-    current_user: Annotated[models.User, Depends(get_current_active_superuser)]
+# This will now use role-based dependency
+@router.get("/users/me/admin-test", response_model=models.User, tags=["Users"], dependencies=[Depends(require_admin_owner)])
+async def read_admin_me(
+    current_user: Annotated[models.User, Depends(get_current_active_user)] # current_user is already validated by require_admin_owner
 ):
     """
-    Test endpoint for superuser access.
+    Test endpoint for admin/owner access.
     """
     return current_user

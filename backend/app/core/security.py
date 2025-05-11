@@ -61,20 +61,31 @@ async def get_current_user(
     user = await crud.get_user_by_username(db, username=username) # Use await for async CRUD
     if user is None:
         raise credentials_exception
-    return models.User(**user.model_dump()) # Convert UserInDB to User
+    # Ensure the User model is correctly instantiated.
+    # UserInDB has 'role', User model (via UserBase) also has 'role'.
+    # is_superuser in User model defaults to False. If it needs to be derived from role for this specific model instance:
+    # user_data = user.model_dump()
+    # user_data['is_superuser'] = user.role in [models.UserRole.admin, models.UserRole.owner]
+    # return models.User(**user_data)
+    # However, the User model itself should handle its fields correctly based on UserBase.
+    return models.User.model_validate(user) # Use model_validate for direct conversion if fields align
 
-async def get_current_active_user(
-    current_user: models.User = Depends(get_current_user)
-) -> models.User:
-    if not current_user.is_active:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user")
-    return current_user
+# The following functions are now handled by `auth.py` and its role-based dependencies.
+# async def get_current_active_user(
+#     current_user: models.User = Depends(get_current_user)
+# ) -> models.User:
+#     if not current_user.is_active:
+#         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user")
+#     return current_user
 
-async def get_current_active_superuser(
-    current_user: models.User = Depends(get_current_active_user)
-) -> models.User:
-    if not current_user.is_superuser:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="The user doesn't have enough privileges"
-        )
-    return current_user
+# async def get_current_active_superuser(
+#     current_user: models.User = Depends(get_current_active_user)
+# ) -> models.User:
+#     # This function is outdated due to the new role system.
+#     # Role-based checks are now preferred (e.g., require_role in auth.py).
+#     if not current_user.is_superuser: # is_superuser might be False by default in User model
+#         # and should be derived from role if still used.
+#         raise HTTPException(
+#             status_code=status.HTTP_403_FORBIDDEN, detail="The user doesn't have enough privileges"
+#         )
+#     return current_user
