@@ -3,8 +3,16 @@ from typing import Optional
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
 
 from .config import settings
+from ... import crud, models # Adjusted import for crud and models
+from ...db import get_db_connection # For database dependency
+import asyncpg # For type hinting
+
+# OAuth2PasswordBearer scheme
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/token") # tokenUrl points to your login endpoint
 
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -33,3 +41,40 @@ def decode_access_token(token: str) -> Optional[dict]:
         return payload
     except JWTError:
         return None
+
+async def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    db: asyncpg.Connection = Depends(get_db_connection) # Add db dependency
+) -> models.User:
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    payload = decode_access_token(token)
+    if payload is None:
+        raise credentials_exception
+    username: str = payload.get("sub")
+    if username is None:
+        raise credentials_exception
+    
+    user = await crud.get_user_by_username(db, username=username) # Use await for async CRUD
+    if user is None:
+        raise credentials_exception
+    return models.User(**user.model_dump()) # Convert UserInDB to User
+
+async def get_current_active_user(
+    current_user: models.User = Depends(get_current_user)
+) -> models.User:
+    if not current_user.is_active:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user")
+    return current_user
+
+async def get_current_active_superuser(
+    current_user: models.User = Depends(get_current_active_user)
+) -> models.User:
+    if not current_user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="The user doesn't have enough privileges"
+        )
+    return current_user
