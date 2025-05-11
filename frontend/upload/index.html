@@ -19,11 +19,11 @@
             --header-bg-color: #efefef;
         }
 
+        /* No longer hiding the body by default */
         body {
             background-color: var(--bg-color);
             color: var(--text-color);
             margin: 0;
-            visibility: hidden;
         }
 
         header {
@@ -32,19 +32,10 @@
     </style>
 
     <!-- Apply theme immediately to prevent flash -->
-    <script>
+    <script data-cfasync="false">
         (function() {
-            // Hide content until theme is applied
-            document.documentElement.classList.add('theme-initializing');
-
             const savedTheme = localStorage.getItem('spectraTheme') || 'dark';
             document.documentElement.setAttribute('data-theme', savedTheme);
-
-            // Make content visible once theme is set and CSS is loaded
-            window.addEventListener('DOMContentLoaded', function() {
-                document.body.style.visibility = 'visible';
-                document.documentElement.classList.remove('theme-initializing');
-            });
         })();
     </script>
     <link rel="stylesheet" href="../style.css"> <!-- Link to main site's CSS for consistency -->
