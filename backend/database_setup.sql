@@ -38,17 +38,23 @@ CREATE INDEX IF NOT EXISTS idx_tags_name ON tags(name);
 CREATE INDEX IF NOT EXISTS idx_image_tags_image_id ON image_tags(image_id);
 CREATE INDEX IF NOT EXISTS idx_image_tags_tag_id ON image_tags(tag_id);
 
--- You might want to add a user table later on:
--- CREATE TABLE IF NOT EXISTS users (
---     id SERIAL PRIMARY KEY,
---     username VARCHAR(50) UNIQUE NOT NULL,
---     email VARCHAR(255) UNIQUE NOT NULL,
---     hashed_password VARCHAR(255) NOT NULL,
---     is_active BOOLEAN DEFAULT TRUE,
---     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
--- );
--- And then link images to users:
--- ALTER TABLE images ADD COLUMN uploader_id INTEGER REFERENCES users(id) ON DELETE SET NULL; -- Or ON DELETE CASCADE
+-- Table for storing user information
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    hashed_password VARCHAR(255) NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    is_superuser BOOLEAN DEFAULT FALSE, -- Added for admin roles
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Optional: Link images to users (if desired in the future)
+-- ALTER TABLE images ADD COLUMN uploader_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+
+-- Indexes for users table
+CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 
 COMMENT ON TABLE images IS 'Stores metadata about uploaded images.';
 COMMENT ON COLUMN images.filename IS 'Original or generated filename of the uploaded image.';
@@ -63,6 +69,14 @@ COMMENT ON COLUMN tags.name IS 'The unique name of the tag (e.g., "cat", "landsc
 COMMENT ON TABLE image_tags IS 'Associates images with tags in a many-to-many relationship.';
 COMMENT ON COLUMN image_tags.image_id IS 'Foreign key referencing the ID of the image.';
 COMMENT ON COLUMN image_tags.tag_id IS 'Foreign key referencing the ID of the tag.';
+
+COMMENT ON TABLE users IS 'Stores user accounts, including administrators.';
+COMMENT ON COLUMN users.username IS 'Unique username for login.';
+COMMENT ON COLUMN users.email IS 'Unique email address for the user.';
+COMMENT ON COLUMN users.hashed_password IS 'Securely hashed password.';
+COMMENT ON COLUMN users.is_active IS 'Whether the user account is active and can log in.';
+COMMENT ON COLUMN users.is_superuser IS 'Whether the user has administrator privileges.';
+COMMENT ON COLUMN users.created_at IS 'Timestamp when the user account was created.';
 
 -- After running this script, ensure your .env file in the backend directory
 -- has the correct POSTGRES_USER, POSTGRES_PASSWORD, and POSTGRES_DB.

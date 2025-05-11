@@ -3,7 +3,8 @@ import redis.asyncio as redis_async
 import json
 from typing import List, Dict, Any, Optional # Added Optional
 from . import models # Using models directly as Pydantic models for API and DB representation for now
-# from .core.config import settings # May not be needed directly in crud
+from .core.config import settings # May be needed for some settings
+from .core import security # For password hashing
 
 # Helper function to robustly parse tags
 def _parse_tags_from_source(tags_source: Any) -> List[models.Tag]:
@@ -413,3 +414,71 @@ async def count_images(
     await redis.set(cache_key, db_count, ex=CACHE_EXPIRY_SECONDS)
     print(f"DB HIT for image count. Stored in cache: {cache_key}")
     return db_count
+
+# User CRUD operations
+
+async def get_user_by_email(db: asyncpg.Connection, email: str) -> Optional[models.UserInDB]:
+    """
+    Retrieves a user by their email address.
+    """
+    query = "SELECT id, username, email, hashed_password, is_active, is_superuser, created_at FROM users WHERE email = $1"
+    user_record = await db.fetchrow(query, email)
+    if user_record:
+        return models.UserInDB(**user_record)
+    return None
+
+async def get_user_by_username(db: asyncpg.Connection, username: str) -> Optional[models.UserInDB]:
+    """
+    Retrieves a user by their username.
+    """
+    query = "SELECT id, username, email, hashed_password, is_active, is_superuser, created_at FROM users WHERE username = $1"
+    user_record = await db.fetchrow(query, username)
+    if user_record:
+        return models.UserInDB(**user_record)
+    return None
+
+async def create_user(db: asyncpg.Connection, user_in: models.UserCreate) -> models.User:
+    """
+    Creates a new user in the database.
+    """
+    hashed_password = security.get_password_hash(user_in.password)
+    
+    # Check if email or username already exists
+    existing_email_user = await get_user_by_email(db, user_in.email)
+    if existing_email_user:
+        raise ValueError(f"User with email {user_in.email} already exists.")
+    
+    existing_username_user = await get_user_by_username(db, user_in.username)
+    if existing_username_user:
+        raise ValueError(f"User with username {user_in.username} already exists.")
+
+    query = """
+        INSERT INTO users (username, email, hashed_password, is_superuser, is_active)
+        VALUES ($1, $2, $3, $4, TRUE)
+        RETURNING id, username, email, is_active, is_superuser, created_at
+    """
+    # For UserCreate, is_active defaults to True, is_superuser defaults to False unless specified
+    user_record = await db.fetchrow(
+        query,
+        user_in.username,
+        user_in.email,
+        hashed_password,
+        user_in.is_superuser
+    )
+    if not user_record:
+        # This should not happen if the insert is successful and RETURNING is used
+        raise Exception("Failed to create user.")
+
+    return models.User(**user_record)
+
+async def get_user(db: asyncpg.Connection, user_id: int) -> Optional[models.UserInDB]:
+    """
+    Retrieves a user by their ID.
+    """
+    query = "SELECT id, username, email, hashed_password, is_active, is_superuser, created_at FROM users WHERE id = $1"
+    user_record = await db.fetchrow(query, user_id)
+    if user_record:
+        return models.UserInDB(**user_record)
+    return None
+
+# We might add update_user and delete_user functions later if needed for admin panel

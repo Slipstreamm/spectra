@@ -32,6 +32,14 @@ class Settings(BaseSettings):
     DEFAULT_RATE_LIMIT: str = "100/minute" # Default rate limit for general API access
     UPLOAD_RATE_LIMIT: str = "1/minute" # Specific rate limit for uploads
 
+    # Security settings for JWT
+    # IMPORTANT: SECRET_KEY should be a strong, random string and kept secret in production.
+    # It's recommended to load this from an environment variable and not hardcode it.
+    # For development, a default is provided. Generate a new one for production:
+    # openssl rand -hex 32
+    SECRET_KEY: str = "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30 # 30 minutes
+
     # Pydantic V2 way to load from .env file
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding='utf-8', extra='ignore')
 

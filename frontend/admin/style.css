@@ -1,0 +1,170 @@
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f4f7f6;
+    color: #333;
+    line-height: 1.6;
+}
+
+.container {
+    width: 90%;
+    max-width: 1200px;
+    margin: 20px auto;
+    padding: 20px;
+    background-color: #fff;
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+}
+
+header {
+    background-color: #4A5568; /* Darker Slate */
+    color: #fff;
+    padding: 15px 20px;
+    border-radius: 8px 8px 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+header h1 {
+    margin: 0;
+    font-size: 1.8em;
+}
+
+#logoutButton {
+    background-color: #E53E3E; /* Red */
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.9em;
+}
+
+#logoutButton:hover {
+    background-color: #C53030; /* Darker Red */
+}
+
+main {
+    padding: 20px 0;
+}
+
+section {
+    margin-bottom: 30px;
+    padding: 20px;
+    background-color: #fdfdfd;
+    border: 1px solid #e0e0e0;
+    border-radius: 5px;
+}
+
+h2 {
+    color: #2D3748; /* Even Darker Slate */
+    margin-top: 0;
+    border-bottom: 2px solid #CBD5E0; /* Lighter Slate for underline */
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+}
+
+h3 {
+    color: #4A5568;
+    margin-top: 0;
+}
+
+form div {
+    margin-bottom: 15px;
+}
+
+label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+    color: #4A5568;
+}
+
+input[type="text"],
+input[type="password"],
+input[type="email"] {
+    width: calc(100% - 22px); /* Account for padding and border */
+    padding: 10px;
+    border: 1px solid #CBD5E0; /* Lighter Slate border */
+    border-radius: 5px;
+    font-size: 1em;
+}
+
+button[type="submit"], .action-button {
+    background-color: #3182CE; /* Blue */
+    color: white;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1em;
+    transition: background-color 0.3s ease;
+}
+
+button[type="submit"]:hover, .action-button:hover {
+    background-color: #2B6CB0; /* Darker Blue */
+}
+
+#loginStatus, #imageUploadStatus {
+    margin-top: 10px;
+    font-weight: bold;
+}
+
+.management-section {
+    margin-top: 20px;
+}
+
+#imageList {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 20px;
+}
+
+.image-item {
+    border: 1px solid #e0e0e0;
+    border-radius: 5px;
+    padding: 10px;
+    background-color: #fff;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    text-align: center;
+}
+
+.image-item img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+    margin-bottom: 10px;
+}
+
+.image-item p {
+    font-size: 0.9em;
+    margin: 5px 0;
+    word-wrap: break-word;
+}
+
+.image-item .delete-button {
+    background-color: #E53E3E; /* Red */
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8em;
+    margin-top: 10px;
+}
+
+.image-item .delete-button:hover {
+    background-color: #C53030; /* Darker Red */
+}
+
+footer {
+    text-align: center;
+    padding: 20px;
+    margin-top: 30px;
+    background-color: #E2E8F0; /* Lightest Slate */
+    color: #4A5568;
+    border-radius: 0 0 8px 8px;
+    font-size: 0.9em;
+}

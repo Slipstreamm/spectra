@@ -45,3 +45,30 @@ class PaginatedImages(BaseModel):
     offset: int
     total: int
     data: List[Image]
+
+# User models
+class UserBase(BaseModel):
+    email: str = Field(..., example="admin@example.com")
+    username: str = Field(..., min_length=3, max_length=50, example="admin_user")
+
+class UserCreate(UserBase):
+    password: str = Field(..., min_length=8, example="aSecurePassword123!")
+    is_superuser: bool = False
+
+class UserUpdate(BaseModel):
+    email: Optional[str] = None
+    username: Optional[str] = None
+    password: Optional[str] = None
+    is_active: Optional[bool] = None
+    is_superuser: Optional[bool] = None
+
+class User(UserBase):
+    id: int
+    is_active: bool = True
+    is_superuser: bool = False
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+class UserInDB(User):
+    hashed_password: str

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Spectra</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Spectra Admin Dashboard</h1>
+            <button id="logoutButton" style="display: none;">Logout</button>
+        </header>
+
+        <main id="adminContent">
+            <!-- Login Form -->
+            <section id="loginSection">
+                <h2>Admin Login</h2>
+                <form id="loginForm">
+                    <div>
+                        <label for="username">Username:</label>
+                        <input type="text" id="username" name="username" required>
+                    </div>
+                    <div>
+                        <label for="password">Password:</label>
+                        <input type="password" id="password" name="password" required>
+                    </div>
+                    <button type="submit">Login</button>
+                    <p id="loginStatus"></p>
+                </form>
+            </section>
+
+            <!-- Dashboard View (hidden by default) -->
+            <section id="dashboardSection" style="display: none;">
+                <h2>Welcome, Admin!</h2>
+                <p>This is the main dashboard area. Manage your application content here.</p>
+                
+                <div class="management-section">
+                    <h3>Image Management</h3>
+                    <div id="imageList">
+                        <p>Loading images...</p>
+                        <!-- Images will be listed here -->
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>&copy; 2025 Spectra Admin</p>
+        </footer>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>

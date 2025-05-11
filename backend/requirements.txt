@@ -6,3 +6,5 @@ python-multipart
 pydantic[email]
 slowapi
 python-magic
+passlib[bcrypt]
+python-jose[cryptography]
