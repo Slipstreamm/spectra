@@ -126,14 +126,27 @@ async def list_posts(
     page: int = Query(1, ge=1),
     limit: int = Query(settings.DEFAULT_IMAGES_PER_PAGE, ge=1, le=settings.MAX_IMAGES_PER_PAGE),
     tags: Optional[str] = Query(None),
+    sort_by: Optional[str] = Query(None, description="Sort posts by: 'date', 'score', 'id', 'random'"),
+    order: Optional[str] = Query("desc", description="Sort order: 'asc' or 'desc'"),
     db: asyncpg.Connection = Depends(get_db_connection),
     redis: redis_async.Redis = Depends(get_redis_connection)
 ):
     tags_list = tags.split(',') if tags and tags.strip() else None
     skip = (page - 1) * limit
 
-    posts_from_db = await crud.get_posts(db=db, redis=redis, skip=skip, limit=limit, tags_filter=tags_list)
-    total_items = await crud.count_posts(db=db, redis=redis, tags_filter=tags_list)
+    # Validate sort_by and order parameters
+    allowed_sort_by = ['date', 'score', 'id', 'random', None] # None means default (usually date)
+    allowed_order = ['asc', 'desc']
+    if sort_by not in allowed_sort_by:
+        raise HTTPException(status_code=400, detail=f"Invalid sort_by parameter. Allowed values: {allowed_sort_by}")
+    if order not in allowed_order:
+        raise HTTPException(status_code=400, detail=f"Invalid order parameter. Allowed values: {allowed_order}")
+
+    posts_from_db = await crud.get_posts(
+        db=db, redis=redis, skip=skip, limit=limit,
+        tags_filter=tags_list, sort_by=sort_by, order=order
+    )
+    total_items = await crud.count_posts(db=db, redis=redis, tags_filter=tags_list, sort_by=sort_by) # sort_by might affect count if filtering changes
     total_pages = math.ceil(total_items / limit) if total_items > 0 else 0
 
     frontend_posts: List[models.PostForFrontend] = []

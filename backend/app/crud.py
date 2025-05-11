@@ -179,10 +179,12 @@ async def get_post(db: asyncpg.Connection, redis: redis_async.Redis, post_id: in
 
 async def get_posts(
     db: asyncpg.Connection, redis: redis_async.Redis, skip: int = 0, limit: int = 10,
-    tags_filter: Optional[List[str]] = None
+    tags_filter: Optional[List[str]] = None,
+    sort_by: Optional[str] = None, order: Optional[str] = "desc"
 ) -> List[models.Post]:
     normalized_tags_key_part = "_".join(sorted([tag.strip().lower().replace(' ', '_') for tag in tags_filter])) if tags_filter else "all"
-    cache_key = f"{POST_LIST_CACHE_PREFIX}skip_{skip}_limit_{limit}_tags_{normalized_tags_key_part}"
+    sort_key_part = f"sort_{sort_by}_order_{order}" if sort_by else "sort_default"
+    cache_key = f"{POST_LIST_CACHE_PREFIX}skip_{skip}_limit_{limit}_tags_{normalized_tags_key_part}_{sort_key_part}"
     cached_posts_json = await redis.get(cache_key)
     if cached_posts_json:
         try:
@@ -207,7 +209,9 @@ async def get_posts(
                       FROM tags t JOIN post_tags pt ON t.id = pt.tag_id WHERE pt.post_id = p.id), '[]'::json) AS tags,
             (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count,
             (SELECT COUNT(*) FROM votes v WHERE v.post_id = p.id AND v.vote_type = 1) AS upvotes,
-            (SELECT COUNT(*) FROM votes v WHERE v.post_id = p.id AND v.vote_type = -1) AS downvotes
+            (SELECT COUNT(*) FROM votes v WHERE v.post_id = p.id AND v.vote_type = -1) AS downvotes,
+            ((SELECT COUNT(*) FROM votes v_up WHERE v_up.post_id = p.id AND v_up.vote_type = 1) -
+             (SELECT COUNT(*) FROM votes v_down WHERE v_down.post_id = p.id AND v_down.vote_type = -1)) AS score
         FROM posts p
         LEFT JOIN users u ON p.uploader_id = u.id
     """
@@ -227,7 +231,20 @@ async def get_posts(
             param_idx += len(normalized_tags_filter)
     if conditions:
         base_query += " WHERE " + " AND ".join(conditions)
-    base_query += f" ORDER BY p.uploaded_at DESC, p.id DESC LIMIT ${param_idx} OFFSET ${param_idx + 1}"
+
+    # Determine ORDER BY clause
+    order_clause = "ORDER BY p.uploaded_at DESC, p.id DESC" # Default sort
+    if sort_by == "date":
+        order_clause = f"ORDER BY p.uploaded_at {order.upper()}, p.id {order.upper()}"
+    elif sort_by == "score":
+        # Score is calculated in the SELECT, so we can use the alias 'score'
+        order_clause = f"ORDER BY score {order.upper()}, p.id {order.upper()}"
+    elif sort_by == "id":
+        order_clause = f"ORDER BY p.id {order.upper()}"
+    elif sort_by == "random":
+        order_clause = "ORDER BY RANDOM()" # PostgreSQL specific for random
+
+    base_query += f" {order_clause} LIMIT ${param_idx} OFFSET ${param_idx + 1}"
     query_params.extend([limit, skip])
 
     post_records = await db.fetch(base_query, *query_params)
@@ -259,9 +276,11 @@ async def get_posts(
     return posts_list
 
 async def count_posts(
-    db: asyncpg.Connection, redis: redis_async.Redis, tags_filter: Optional[List[str]] = None
+    db: asyncpg.Connection, redis: redis_async.Redis, tags_filter: Optional[List[str]] = None,
+    sort_by: Optional[str] = None # sort_by might be needed if filtering changes based on it, though typically not for count
 ) -> int:
     normalized_tags_key_part = "_".join(sorted([tag.strip().lower().replace(' ', '_') for tag in tags_filter])) if tags_filter else "all"
+    # sort_by is usually not part of count cache key unless it implies different filtering logic for count
     cache_key = f"{POST_COUNT_CACHE_PREFIX}tags_{normalized_tags_key_part}"
     cached_count = await redis.get(cache_key)
     if cached_count is not None:

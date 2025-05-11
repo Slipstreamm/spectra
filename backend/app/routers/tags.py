@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from typing import List
 import asyncpg
 import redis.asyncio as redis_async
@@ -15,6 +15,7 @@ router = APIRouter(
 @router.get("/", response_model=List[models.TagWithCount])
 @limiter.limit("30/minute") # Example rate limit
 async def list_all_tags_with_counts(
+    request: Request, # Added request parameter
     db: asyncpg.Connection = Depends(get_db_connection),
     redis: redis_async.Redis = Depends(get_redis_connection)
 ):

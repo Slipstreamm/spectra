@@ -11,20 +11,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const modalTagsContainer = document.getElementById('modalTags');
     const closeModalButton = imageModal.querySelector('.close-button');
     const tagDisplayArea = document.getElementById('tag-display-area'); // Added for sidebar tags
+    const sidebarTagFilterInput = document.getElementById('sidebarTagFilter'); // Added for the new filter input
     // Auth-related DOM Elements
     const loginLink = document.getElementById('loginLink');
     const registerLink = document.getElementById('registerLink');
     const logoutLink = document.getElementById('logoutLink');
     const userInfoDisplay = document.getElementById('userInfo');
     const usernameDisplay = document.getElementById('usernameDisplay');
+    const itemsPerPageSelect = document.getElementById('itemsPerPageSelect');
+    const controlsBar = document.getElementById('controlsBar');
     // const accountLink = document.getElementById('accountLink');
 
 
     // API and App State
     const API_BASE_URL = '/api/v1'; // Assuming backend is served from the same host
-    const IMAGES_PER_PAGE = 20; // Or get from backend if configurable
+    let IMAGES_PER_PAGE = 20; // Default, will be updated by select
     let currentPage = 1;
     let currentTags = '';
+    let currentSortBy = 'date'; // Default sort: 'date', 'score', 'id', 'random'
+    let currentOrder = 'desc'; // Default order: 'asc', 'desc'
     // serverThemeConfig is removed as theme logic is now in theme.js
 
     // --- Authentication Handling ---
@@ -90,15 +95,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Image Fetching and Rendering ---
-    async function fetchImages(tags = '', page = 1) {
+    async function fetchImages(tags = '', page = 1, sort_by = currentSortBy, order = currentOrder, limit = IMAGES_PER_PAGE) {
         currentTags = tags;
         currentPage = page;
+        currentSortBy = sort_by;
+        currentOrder = order;
+        IMAGES_PER_PAGE = parseInt(limit, 10); // Update global IMAGES_PER_PAGE from selected limit
+
         galleryContainer.innerHTML = '<p class="status-message">Loading images...</p>';
         paginationControls.innerHTML = ''; // Clear old pagination
 
         let queryParams = `?page=${page}&limit=${IMAGES_PER_PAGE}`;
         if (tags) {
-            queryParams += `&tags=${encodeURIComponent(tags.trim().split(/\s+/).join(','))}`; // Split by space, join by comma for API
+            queryParams += `&tags=${encodeURIComponent(tags.trim().split(/\s+/).join(','))}`;
+        }
+        if (sort_by) {
+            queryParams += `&sort_by=${sort_by}`;
+        }
+        if (order) {
+            queryParams += `&order=${order}`;
         }
 
         try {
@@ -299,23 +314,29 @@ document.addEventListener('DOMContentLoaded', () => {
             "Character": "character:",
             "Artist": "artist:",
             // Add more specific categories if needed
-            // "Meta": "meta:", 
+            // "Meta": "meta:",
         };
         const generalTags = [];
         const categorizedTags = {};
+        const popularTagsLimit = 10; // Number of popular tags to show
 
         for (const categoryName in categories) {
             categorizedTags[categoryName] = [];
         }
 
-        tagsWithCounts.forEach(tag => {
+        // Sort all tags by post_count to easily get popular tags
+        const sortedAllTags = [...tagsWithCounts].sort((a, b) => b.post_count - a.post_count);
+
+        // Populate categorized tags and general tags
+        // Iterate over a copy for categorization, so sortedAllTags remains for "Most Popular"
+        [...tagsWithCounts].forEach(tag => {
             let categorized = false;
             for (const categoryName in categories) {
                 const prefix = categories[categoryName];
                 if (tag.name.startsWith(prefix)) {
                     categorizedTags[categoryName].push({
                         ...tag,
-                        displayName: tag.name.substring(prefix.length).replace(/_/g, ' ') // Clean display name
+                        displayName: tag.name.substring(prefix.length).replace(/_/g, ' ')
                     });
                     categorized = true;
                     break;
@@ -325,10 +346,38 @@ document.addEventListener('DOMContentLoaded', () => {
                 generalTags.push({ ...tag, displayName: tag.name.replace(/_/g, ' ') });
             }
         });
+        
+        // Render "Most Popular Tags" section
+        if (sortedAllTags.length > 0) {
+            const popularCategoryDiv = document.createElement('div');
+            popularCategoryDiv.className = 'tag-category popular-tags-category';
+            const popularTitle = document.createElement('h4');
+            popularTitle.textContent = 'Most Popular';
+            popularCategoryDiv.appendChild(popularTitle);
+            const popularUl = document.createElement('ul');
+            sortedAllTags.slice(0, popularTagsLimit).forEach(tag => {
+                const li = document.createElement('li');
+                const a = document.createElement('a');
+                a.href = '#';
+                // For popular tags, display the original name (with underscores) and count
+                a.textContent = `${tag.name.replace(/_/g, ' ')} (${tag.post_count})`; 
+                a.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    tagSearchInput.value = tag.name; // Use original tag name for search
+                    handleSearch();
+                });
+                li.appendChild(a);
+                popularUl.appendChild(li);
+            });
+            popularCategoryDiv.appendChild(popularUl);
+            tagDisplayArea.appendChild(popularCategoryDiv);
+        }
 
-        // Render categorized tags
+        // Render other categorized tags
         for (const categoryName in categories) {
             if (categorizedTags[categoryName].length > 0) {
+                // Sort within specific categories as well
+                categorizedTags[categoryName].sort((a,b) => b.post_count - a.post_count);
                 const categoryDiv = document.createElement('div');
                 categoryDiv.className = 'tag-category';
                 const categoryTitle = document.createElement('h4');
@@ -385,14 +434,93 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    if (sidebarTagFilterInput && tagDisplayArea) {
+        sidebarTagFilterInput.addEventListener('input', () => {
+            const filterText = sidebarTagFilterInput.value.toLowerCase().trim();
+            const tagLinks = tagDisplayArea.querySelectorAll('.tag-category ul li a');
+            tagLinks.forEach(link => {
+                const tagName = link.textContent.toLowerCase();
+                const listItem = link.closest('li'); // Get the parent <li>
+                if (tagName.includes(filterText)) {
+                    listItem.style.display = '';
+                } else {
+                    listItem.style.display = 'none';
+                }
+            });
+
+            // Also show/hide category titles if all their tags are hidden
+            const categories = tagDisplayArea.querySelectorAll('.tag-category');
+            categories.forEach(category => {
+                const visibleItems = category.querySelectorAll('ul li[style*="display: initial"], ul li:not([style*="display: none"])');
+                const title = category.querySelector('h4');
+                if (title) { // Ensure title exists
+                    if (visibleItems.length > 0) {
+                        title.style.display = '';
+                        category.style.display = ''; // Show the category div itself
+                    } else {
+                        // If the category is "Most Popular" and it's empty due to filter, hide it.
+                        // Otherwise, for normal categories, if all items are filtered out, hide the category.
+                        // This prevents hiding "Most Popular" if it was empty to begin with.
+                        if (!category.classList.contains('popular-tags-category') || filterText) {
+                             title.style.display = 'none';
+                             category.style.display = 'none'; // Hide the category div itself
+                        } else if (category.classList.contains('popular-tags-category') && visibleItems.length === 0 && filterText) {
+                            // Specifically hide popular if it has items but all are filtered out
+                            title.style.display = 'none';
+                            category.style.display = 'none';
+                        } else {
+                            // Keep popular visible if it was initially empty and no filter text
+                             title.style.display = '';
+                             category.style.display = '';
+                        }
+                    }
+                }
+            });
+        });
+    }
+
     // --- Initial Load ---
     const urlParams = new URLSearchParams(window.location.search);
     const initialTagsFromURL = urlParams.get('tags');
+
+    // Initialize items per page from select, or default
+    if (itemsPerPageSelect) {
+        IMAGES_PER_PAGE = parseInt(itemsPerPageSelect.value, 10);
+        itemsPerPageSelect.addEventListener('change', (event) => {
+            const newLimit = parseInt(event.target.value, 10);
+            fetchImages(currentTags, 1, currentSortBy, currentOrder, newLimit); // Reset to page 1
+        });
+    }
+
+    // Initialize sort buttons
+    if (controlsBar) {
+        const sortButtons = controlsBar.querySelectorAll('.sort-button');
+        sortButtons.forEach(button => {
+            // Set initial active state based on defaultSortBy and defaultOrder
+            if (button.dataset.sort === currentSortBy) {
+                 // For 'date' and 'score', the default order is 'desc'.
+                 // 'random' doesn't have an order.
+                if (currentSortBy === 'random' || button.dataset.order === currentOrder) {
+                    button.classList.add('active');
+                }
+            }
+
+            button.addEventListener('click', () => {
+                sortButtons.forEach(btn => btn.classList.remove('active'));
+                button.classList.add('active');
+                const sortBy = button.dataset.sort;
+                const sortOrder = button.dataset.order || 'desc'; // Default to desc if not specified (e.g. for random)
+                fetchImages(currentTags, 1, sortBy, sortOrder, IMAGES_PER_PAGE); // Reset to page 1
+            });
+        });
+    }
+
+
     if (initialTagsFromURL) {
         tagSearchInput.value = initialTagsFromURL.replace(/,/g, ' '); // Convert comma to space for input
-        fetchImages(tagSearchInput.value, 1);
+        fetchImages(tagSearchInput.value, 1, currentSortBy, currentOrder, IMAGES_PER_PAGE);
     } else {
-        fetchImages('', 1); // Load all images on page 1 initially
+        fetchImages('', 1, currentSortBy, currentOrder, IMAGES_PER_PAGE); // Load all images on page 1 initially
     }
     fetchAndDisplayTags(); // Load tags for the sidebar
 

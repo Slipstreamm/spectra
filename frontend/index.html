@@ -113,6 +113,7 @@
             </div>
             <div id="tag-display-area">
                 <h3>Tags</h3>
+                <input type="text" id="sidebarTagFilter" placeholder="Filter tags..." style="width: calc(100% - 1em); margin-bottom: 0.75em; padding: 0.4em 0.5em; border-radius: 3px; border: 1px solid var(--input-border-color); background-color: var(--input-bg-color); color: var(--text-color);">
                 <!-- Placeholder for tag categories and lists -->
                 <div class="tag-category">
                     <h4>Copyright</h4>
@@ -138,10 +139,23 @@
         </aside>
 
         <main id="content-area">
-            <!-- The existing controls-bar might be removed or re-purposed if not needed with sidebar -->
-            <!-- <div class="controls-bar"> -->
-                <!-- Future advanced sort/filter options can go here -->
-            <!-- </div> -->
+            <div class="controls-bar" id="controlsBar">
+                <div class="sort-options">
+                    <span>Sort by:</span>
+                    <button data-sort="date" data-order="desc" class="sort-button active">Latest</button>
+                    <button data-sort="score" data-order="desc" class="sort-button">Popular</button>
+                    <button data-sort="random" class="sort-button">Random</button>
+                    <!-- Add id sort if needed: <button data-sort="id" data-order="desc" class="sort-button">ID</button> -->
+                </div>
+                <div class="view-options">
+                    <label for="itemsPerPageSelect">Per page:</label>
+                    <select id="itemsPerPageSelect">
+                        <option value="20">20</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
+                </div>
+            </div>
             <div id="galleryContainer" class="gallery-grid">
                 <!-- Images will be loaded here by JavaScript -->
                 <p class="status-message">Loading images...</p>
