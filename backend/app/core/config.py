@@ -107,7 +107,8 @@ class Settings(BaseSettings):
 
         # Construct DATABASE_URL after all settings are loaded
         if not self.DATABASE_URL: # If not set by ENV or .env or TOML (if DATABASE_URL was a direct TOML field)
-            self.DATABASE_URL = f"postgresql+asyncpg://{self.database.user}:{self.database.password}@{self.database.host}:{self.database.port}/{self.database.name}"
+            # asyncpg expects the scheme to be 'postgresql' or 'postgres', not 'postgresql+asyncpg'
+            self.DATABASE_URL = f"postgresql://{self.database.user}:{self.database.password}@{self.database.host}:{self.database.port}/{self.database.name}"
 
         # Construct REDIS_URL
         if not self.REDIS_URL:
