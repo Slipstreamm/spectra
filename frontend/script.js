@@ -219,20 +219,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const infoDiv = document.createElement('div');
             infoDiv.className = 'gallery-item-info';
-
-            // Post Title
-            const titleElement = document.createElement('h3');
-            titleElement.className = 'post-title';
-            titleElement.textContent = post.title || 'Untitled Post';
-            infoDiv.appendChild(titleElement);
-
-            // Uploader Info
-            const uploaderElement = document.createElement('p');
-            uploaderElement.className = 'post-uploader';
-            const uploaderName = post.uploader ? post.uploader.username : 'Unknown';
-            const uploaderRole = post.uploader && post.uploader.role ? post.uploader.role : '';
-            uploaderElement.textContent = `By: ${uploaderName}${uploaderRole && uploaderRole !== 'user' ? ' (' + uploaderRole + ')' : ''}`;
-            infoDiv.appendChild(uploaderElement);
             
             // Comment Count
             const commentsElement = document.createElement('p');
@@ -248,23 +234,23 @@ document.addEventListener('DOMContentLoaded', () => {
             infoDiv.appendChild(votesElement);
 
             // Tags (similar to before, but using 'post' object)
-            const tagsDiv = document.createElement('div');
-            tagsDiv.className = 'tags';
-            if (post.tags && post.tags.length > 0) {
-                post.tags.slice(0, 3).forEach(tag => { // Show a few tags
-                    const tagSpan = document.createElement('span');
-                    tagSpan.textContent = tag.name;
-                    tagsDiv.appendChild(tagSpan);
-                });
-                if (post.tags.length > 3) {
-                    const moreSpan = document.createElement('span');
-                    moreSpan.textContent = `+${post.tags.length - 3}`;
-                    tagsDiv.appendChild(moreSpan);
-                }
-            } else {
-                tagsDiv.textContent = 'No tags';
-            }
-            infoDiv.appendChild(tagsDiv);
+            // const tagsDiv = document.createElement('div');
+            // tagsDiv.className = 'tags';
+            // if (post.tags && post.tags.length > 0) {
+            //     post.tags.slice(0, 3).forEach(tag => { // Show a few tags
+            //         const tagSpan = document.createElement('span');
+            //         tagSpan.textContent = tag.name;
+            //         tagsDiv.appendChild(tagSpan);
+            //     });
+            //     if (post.tags.length > 3) {
+            //         const moreSpan = document.createElement('span');
+            //         moreSpan.textContent = `+${post.tags.length - 3}`;
+            //         tagsDiv.appendChild(moreSpan);
+            //     }
+            // } else {
+            //     tagsDiv.textContent = 'No tags';
+            // }
+            // infoDiv.appendChild(tagsDiv);
             
             itemDiv.appendChild(imgElement);
             itemDiv.appendChild(infoDiv);
