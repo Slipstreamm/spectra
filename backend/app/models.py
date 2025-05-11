@@ -84,6 +84,8 @@ class PostBase(BaseModel):
     filename: str # filename of the image associated with the post
     mimetype: Optional[str] = None
     filesize: Optional[int] = None
+    image_width: Optional[int] = None # Added
+    image_height: Optional[int] = None # Added
     title: Optional[str] = Field(None, max_length=255)
     description: Optional[str] = Field(None)
     # uploader_id will be set by the backend based on authenticated user
@@ -100,6 +102,7 @@ class Post(PostBase):
     tags: List[Tag] = []
     image_url: Optional[HttpUrl] = None
     thumbnail_url: Optional[HttpUrl] = None
+    # image_width and image_height are inherited from PostBase
     comment_count: int = 0
     upvotes: int = 0
     downvotes: int = 0
@@ -126,6 +129,8 @@ class PostForFrontend(BaseModel):
     image_url: HttpUrl
     thumbnail_url: Optional[HttpUrl] = None
     mimetype: Optional[str] = None # Added for frontend to distinguish file types
+    image_width: Optional[int] = None # Added
+    image_height: Optional[int] = None # Added
     comment_count: int = 0
     upvotes: int = 0
     downvotes: int = 0

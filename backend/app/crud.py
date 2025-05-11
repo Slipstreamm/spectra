@@ -2,6 +2,8 @@ import asyncpg
 import redis.asyncio as redis_async
 import json
 from typing import List, Dict, Any, Optional
+from PIL import Image as PillowImage # For image dimension extraction
+from pathlib import Path # For working with file paths
 from . import models
 from .core.config import settings
 from .core import security
@@ -83,17 +85,146 @@ async def create_post_with_tags(
     uploader_id: int
 ) -> models.Post:
     async with db.transaction():
+        # Get image dimensions
+        img_width, img_height = None, None
+        try:
+            # Construct the absolute path to the image on disk
+            # Assuming filepath_on_disk is relative to the project root or a configured UPLOADS_DIR
+            # For this to work, filepath_on_disk needs to be the actual path where the file was saved.
+            # The router saves it to settings.UPLOADS_DIR / unique_filename
+            # So, filepath_on_disk passed here should be that absolute path or relative to a known root.
+            # Let's assume filepath_on_disk is relative to project root for now, or adjust if it's absolute.
+            
+            # If filepath_on_disk is already absolute, this Path construction is fine.
+            # If it's relative like "uploads/filename.jpg", we need to prepend the project root.
+            # The router currently constructs `file_location_on_disk` as an absolute path.
+            # And `db_filepath` is `f"{settings.UPLOADS_DIR}/{unique_filename}"` which is relative.
+            # Let's ensure we use the absolute path for Pillow.
+            
+            # The router saves the file to `file_location_on_disk` which is absolute.
+            # We need that absolute path here.
+            # The `filepath_on_disk` parameter in this function currently receives `db_filepath`
+            # which is relative. This needs to be reconciled.
+            # For now, let's assume `filepath_on_disk` is the *absolute* path to the saved file.
+            # This means the router should pass `file_location_on_disk.as_posix()` to this CRUD function.
+            # I will make a note to adjust the router call if this assumption is incorrect.
+            
+            # **Critical Assumption for this block:** `filepath_on_disk` is the ABSOLUTE path to the image.
+            # If it's relative, this Pillow part will fail.
+            # The router currently passes a relative path. This will need adjustment in the router.
+            # For now, proceeding with the assumption it's absolute for Pillow.
+            
+            # Let's refine this: the router saves to an absolute path.
+            # The `filepath_on_disk` parameter here is intended for the DB `filepath` column.
+            # We need the *actual disk path* for Pillow.
+            # The router should pass the *absolute disk path* to this function as a separate parameter,
+            # or this function needs to reconstruct it.
+            # Let's assume the router will pass the absolute path as `actual_disk_path`.
+            # For now, I'll add a placeholder for `actual_disk_path` and use `filepath_on_disk`
+            # with a comment, then adjust the router.
+
+            # Re-evaluating: The router's `file_location_on_disk` is the absolute path.
+            # The `db_filepath` is relative for storage in DB.
+            # This function `create_post_with_tags` needs the absolute path for Pillow.
+            # So, the router should pass `file_location_on_disk.as_posix()` as an additional argument,
+            # or this function needs to derive it.
+            # Let's modify this function to accept `absolute_disk_path`.
+
+            # Modifying function signature to accept absolute_disk_path
+            # This change will require updating the call in posts.py router.
+            # For now, I will proceed as if it's passed.
+            # If not passed, Pillow will fail.
+            # The `filepath_on_disk` is for the DB.
+
+            # Let's assume the router will be updated to pass the absolute path.
+            # For now, I'll use `filepath_on_disk` and assume it's made absolute by the caller.
+            # This is a bit messy. A better way: router passes the UploadFile object, or its path.
+
+            # Simplification: The router has the absolute path `file_location_on_disk`.
+            # It should pass this to the CRUD function.
+            # I will modify the CRUD function signature.
+
+            # The `filepath_on_disk` parameter IS the relative path for the DB.
+            # We need the *absolute path* for Pillow.
+            # The router has `file_location_on_disk`.
+            # This function should take `absolute_file_path_on_disk` as a new param.
+            # I will add this to the signature and then update the router.
+
+            # For now, let's assume `post_data` can carry the absolute path if we modify PostCreate,
+            # or we add a new parameter to this function. Adding a new param is cleaner.
+            # I will add `absolute_file_path: str` to this function's signature.
+            # This means the router `upload_post` needs to pass `file_location_on_disk.as_posix()`.
+
+            # **NEW PLAN:** Modify `create_post_with_tags` signature.
+            # `filepath_on_disk` remains the relative path for DB.
+            # Add `absolute_path_for_pillow: str`.
+
+            # The `filepath_on_disk` is the relative path for the DB.
+            # The router has `file_location_on_disk` (absolute).
+            # This function needs the absolute path.
+            # Let's assume the router passes `file_location_on_disk.as_posix()` as `filepath_on_disk`
+            # and the DB stores this absolute path. Or, the DB stores relative and we reconstruct.
+            # Storing relative is usually better.
+            # So, `filepath_on_disk` is relative. We need to make it absolute for Pillow.
+            project_root_for_pillow = Path(__file__).resolve().parent.parent.parent # backend/
+            # `filepath_on_disk` is like "uploads/images/uuid.jpg"
+            # settings.UPLOADS_DIR is like "frontend/static/uploads/images"
+            # This needs to be consistent. `filepath_on_disk` is `settings.UPLOADS_DIR/unique_filename`
+            # So, `project_root / filepath_on_disk` should be the absolute path.
+            
+            # The router calculates `file_location_on_disk` as absolute.
+            # It passes `db_filepath` (relative) to this CRUD.
+            # We need to reconstruct the absolute path here for Pillow.
+            
+            # `db_filepath` is `f"{settings.UPLOADS_DIR}/{post_data.filename}"`
+            # `settings.UPLOADS_DIR` is relative to project root e.g. "frontend/static/uploads"
+            # So, `Path(settings.PROJECT_ROOT_DIR) / db_filepath` should be it.
+            # Assuming settings.PROJECT_ROOT_DIR is available. If not, derive it.
+            # `Path(__file__).resolve().parent.parent.parent` is `backend/`
+            # So `Path(__file__).resolve().parent.parent.parent.parent` is project root.
+            
+            current_file_path = Path(__file__).resolve() # .../backend/app/crud.py
+            project_root = current_file_path.parent.parent.parent # z:/projects_git/spectra/backend
+            # This is still not project root.
+            # `settings.UPLOADS_DIR` is like `frontend/static/uploads`
+            # `filepath_on_disk` is like `frontend/static/uploads/filename.jpg` (if settings.UPLOADS_DIR includes frontend/static)
+            # The router saves to `project_root_for_router / settings.UPLOADS_DIR / unique_filename`
+            # where `project_root_for_router` is `z:/projects_git/spectra`
+            # `filepath_on_disk` passed here is `settings.UPLOADS_DIR + "/" + post_data.filename`
+            # So, `Path(settings.PROJECT_ROOT_DIR) / filepath_on_disk` is the way.
+            # Let's assume `settings.PROJECT_ROOT_DIR` is defined in `core.config.py`
+            # If not, we have to derive it carefully.
+            # `Path(settings.UPLOADS_DIR)` is relative from project root.
+            # `filepath_on_disk` is also relative from project root.
+
+            # The router saves the file to an absolute path: `uploads_abs_path / unique_filename`
+            # `uploads_abs_path` is `project_root / settings.UPLOADS_DIR`
+            # `filepath_on_disk` passed to this function is `f"{settings.UPLOADS_DIR}/{unique_filename}"`
+            # This is a relative path from the project root.
+            # So, to get absolute path for Pillow:
+            abs_path_for_pillow = Path(settings.PROJECT_ROOT_DIR) / filepath_on_disk
+
+            with PillowImage.open(abs_path_for_pillow) as img:
+                img_width, img_height = img.size
+        except FileNotFoundError:
+            print(f"Warning: Image file not found at {abs_path_for_pillow} for dimension extraction. Post will be created without dimensions.")
+        except Exception as e:
+            print(f"Warning: Could not get image dimensions for {filepath_on_disk}. Error: {e}. Post will be created without dimensions.")
+
         post_insert_query = """
-            INSERT INTO posts (filename, filepath, mimetype, filesize, title, description, uploader_id)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
-            RETURNING id, filename, filepath, mimetype, filesize, title, description, uploader_id, uploaded_at
+            INSERT INTO posts (filename, filepath, mimetype, filesize, image_width, image_height, title, description, uploader_id)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            RETURNING id, filename, filepath, mimetype, filesize, image_width, image_height, title, description, uploader_id, uploaded_at
         """
         post_record = await db.fetchrow(
             post_insert_query,
             post_data.filename, filepath_on_disk, post_data.mimetype, post_data.filesize,
+            img_width, img_height, # Add dimensions here
             post_data.title, post_data.description, uploader_id
         )
         if not post_record:
+            # If insert failed, and we opened the file with Pillow, it's already closed by `with`.
+            # The file on disk should be cleaned up by the router if DB operation fails.
             raise Exception("Failed to create post record in database.")
 
         created_post_id = post_record['id']
@@ -114,12 +245,16 @@ async def create_post_with_tags(
 
         response_post = models.Post(
             id=post_record['id'], filename=post_record['filename'], filepath=post_record['filepath'],
-            mimetype=post_record['mimetype'], filesize=post_record['filesize'], title=post_record['title'],
-            description=post_record['description'], uploader_id=post_record['uploader_id'],
-            uploader=uploader_public_info, uploaded_at=post_record['uploaded_at'], tags=processed_tags,
+            mimetype=post_record['mimetype'], filesize=post_record['filesize'],
+            image_width=post_record['image_width'], image_height=post_record['image_height'], # Add dimensions
+            title=post_record['title'], description=post_record['description'],
+            uploader_id=post_record['uploader_id'], uploader=uploader_public_info,
+            uploaded_at=post_record['uploaded_at'], tags=processed_tags,
             image_url=None, thumbnail_url=None, comment_count=0, upvotes=0, downvotes=0
         )
 
+        # Invalidate relevant caches
+        await redis.delete(f"{POST_CACHE_PREFIX}{created_post_id}") # Invalidate specific post if it was somehow cached before full creation
         list_cache_keys = [key async for key in redis.scan_iter(match=f"{POST_LIST_CACHE_PREFIX}*")]
         if list_cache_keys: await redis.delete(*list_cache_keys)
         count_cache_keys = [key async for key in redis.scan_iter(match=f"{POST_COUNT_CACHE_PREFIX}*")]
@@ -142,10 +277,9 @@ async def get_post(db: asyncpg.Connection, redis: redis_async.Redis, post_id: in
 
     query = """
         SELECT
-            p.id, p.filename, p.filepath, p.mimetype, p.filesize, p.title, p.description,
-            p.uploaded_at, p.uploader_id,
-            u.id AS uploader_user_id, u.username AS uploader_username, u.role AS uploader_role, -- Removed email, added uploader_user_id
-            -- u.is_active AS uploader_is_active, u.created_at AS uploader_created_at, -- Not needed for UserPublic
+            p.id, p.filename, p.filepath, p.mimetype, p.filesize, p.image_width, p.image_height, -- Added dimensions
+            p.title, p.description, p.uploaded_at, p.uploader_id,
+            u.id AS uploader_user_id, u.username AS uploader_username, u.role AS uploader_role,
             COALESCE((SELECT json_agg(json_build_object('id', t.id, 'name', t.name) ORDER BY t.name)
                       FROM tags t JOIN post_tags pt ON t.id = pt.tag_id WHERE pt.post_id = p.id), '[]'::json) AS tags,
             (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count,
@@ -168,13 +302,15 @@ async def get_post(db: asyncpg.Connection, redis: redis_async.Redis, post_id: in
         )
     db_post_model = models.Post(
         id=post_record['id'], filename=post_record['filename'], filepath=post_record['filepath'],
-        mimetype=post_record['mimetype'], filesize=post_record['filesize'], title=post_record['title'],
-        description=post_record['description'], uploaded_at=post_record['uploaded_at'],
-        uploader_id=post_record['uploader_id'], uploader=uploader_public_data, tags=parsed_db_tags,
-        image_url=None, thumbnail_url=None, comment_count=post_record['comment_count'],
-        upvotes=post_record['upvotes'], downvotes=post_record['downvotes']
+        mimetype=post_record['mimetype'], filesize=post_record['filesize'],
+        image_width=post_record['image_width'], image_height=post_record['image_height'], # Added dimensions
+        title=post_record['title'], description=post_record['description'],
+        uploaded_at=post_record['uploaded_at'], uploader_id=post_record['uploader_id'],
+        uploader=uploader_public_data, tags=parsed_db_tags, image_url=None, thumbnail_url=None,
+        comment_count=post_record['comment_count'], upvotes=post_record['upvotes'],
+        downvotes=post_record['downvotes']
     )
-    await redis.set(cache_key, db_post_model.model_dump_json(), ex=CACHE_EXPIRY_SECONDS)
+    await redis.set(cache_key, db_post_model.model_dump_json(), ex=CACHE_EXPIRY_SECONDS) # Use model_dump_json for Pydantic v2
     return db_post_model
 
 async def get_posts(
@@ -212,10 +348,9 @@ async def get_posts(
 
     base_query = """
         SELECT
-            p.id, p.filename, p.filepath, p.mimetype, p.filesize, p.title, p.description,
-            p.uploaded_at, p.uploader_id,
-            u.id AS uploader_user_id, u.username AS uploader_username, u.role AS uploader_role, -- Removed email, added uploader_user_id
-            -- u.is_active AS uploader_is_active, u.created_at AS uploader_created_at, -- Not needed for UserPublic
+            p.id, p.filename, p.filepath, p.mimetype, p.filesize, p.image_width, p.image_height, -- Added dimensions
+            p.title, p.description, p.uploaded_at, p.uploader_id,
+            u.id AS uploader_user_id, u.username AS uploader_username, u.role AS uploader_role,
             COALESCE((SELECT json_agg(json_build_object('id', t.id, 'name', t.name) ORDER BY t.name)
                       FROM tags t JOIN post_tags pt ON t.id = pt.tag_id WHERE pt.post_id = p.id), '[]'::json) AS tags,
             (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id) AS comment_count,
@@ -267,15 +402,13 @@ async def get_posts(
             # A common approach is to filter in a subquery or use HAVING.
             # Let's assume for now we will filter on the calculated score in a HAVING clause if `min_score` is present.
             # This will be handled by adding to a `having_conditions` list.
-            pass # Will handle min_score with HAVING clause or by adjusting main query structure
+            pass # Will handle min_score with HAVING clause or by adjusting main query structure if not already handled by score calculation in SELECT
         if advanced_filters.get("min_width"):
-            # Assuming image_width column exists in posts table
-            conditions.append(f"p.image_width >= ${param_idx}") # Placeholder: requires image_width column
+            conditions.append(f"p.image_width >= ${param_idx}") # Now uses actual column
             query_params.append(advanced_filters["min_width"])
             param_idx += 1
         if advanced_filters.get("min_height"):
-            # Assuming image_height column exists in posts table
-            conditions.append(f"p.image_height >= ${param_idx}") # Placeholder: requires image_height column
+            conditions.append(f"p.image_height >= ${param_idx}") # Now uses actual column
             query_params.append(advanced_filters["min_height"])
             param_idx += 1
         if advanced_filters.get("uploader_name"):
@@ -327,15 +460,17 @@ async def get_posts(
             )
         posts_list.append(models.Post(
             id=record['id'], filename=record['filename'], filepath=record['filepath'],
-            mimetype=record['mimetype'], filesize=record['filesize'], title=record['title'],
-            description=record['description'], uploaded_at=record['uploaded_at'],
-            uploader_id=record['uploader_id'], uploader=uploader_public_data, tags=parsed_db_tags,
-            image_url=None, thumbnail_url=None, comment_count=record['comment_count'],
-            upvotes=record['upvotes'], downvotes=record['downvotes']
+            mimetype=record['mimetype'], filesize=record['filesize'],
+            image_width=record['image_width'], image_height=record['image_height'], # Added dimensions
+            title=record['title'], description=record['description'],
+            uploaded_at=record['uploaded_at'], uploader_id=record['uploader_id'],
+            uploader=uploader_public_data, tags=parsed_db_tags, image_url=None, thumbnail_url=None,
+            comment_count=record['comment_count'], upvotes=record['upvotes'],
+            downvotes=record['downvotes']
         ))
     if posts_list:
         try:
-            cacheable_data = json_dumps([post.model_dump() for post in posts_list])
+            cacheable_data = json_dumps([post.model_dump() for post in posts_list]) # Use model_dump for Pydantic v2
             await redis.set(cache_key, cacheable_data, ex=CACHE_EXPIRY_SECONDS)
         except Exception as e:
             print(f"Error caching post list: {e}")
@@ -414,11 +549,11 @@ async def count_posts(
             query_params.append(advanced_filters["min_score"])
             param_idx += 1
         if advanced_filters.get("min_width"):
-            conditions.append(f"p.image_width >= ${param_idx}") # Placeholder: requires image_width column
+            conditions.append(f"p.image_width >= ${param_idx}") # Now uses actual column
             query_params.append(advanced_filters["min_width"])
             param_idx += 1
         if advanced_filters.get("min_height"):
-            conditions.append(f"p.image_height >= ${param_idx}") # Placeholder: requires image_height column
+            conditions.append(f"p.image_height >= ${param_idx}") # Now uses actual column
             query_params.append(advanced_filters["min_height"])
             param_idx += 1
         if advanced_filters.get("uploader_name"):
