@@ -23,7 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const logoutLinkHeader = document.getElementById('logoutLinkHeader');
     const userInfoHeaderDisplay = document.getElementById('userInfoHeader');
     const usernameDisplayHeader = document.getElementById('usernameDisplayHeader');
-    
+
     // Footer year
     const currentYearElement = document.getElementById('currentYear');
 
@@ -62,7 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return response.json();
     }
-    
+
     // --- Post Loading and Rendering ---
     async function loadPostDetails(postId) {
         try {
@@ -71,7 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
             await loadComments(postId); // Load comments after post is loaded
         } catch (error) {
             console.error('Error loading post details:', error);
-            document.getElementById('postDetailContainer').innerHTML = 
+            document.getElementById('postDetailContainer').innerHTML =
                 `<p class="status-message error-message">Error loading post: ${error.message}</p>`;
         }
     }
@@ -83,7 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const uploaderRole = post.uploader && post.uploader.role ? post.uploader.role : '';
         postUploaderElement.textContent = `By: ${uploaderName}${uploaderRole && uploaderRole !== 'user' ? ' (' + uploaderRole + ')' : ''}`;
         postUploadedAtElement.textContent = `Uploaded: ${new Date(post.uploaded_at).toLocaleString()}`;
-        
+
         if (post.image_url) {
             postImageElement.src = post.image_url;
             postImageElement.alt = post.title || post.filename || 'Post image';
@@ -95,7 +95,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         postDescriptionTextElement.textContent = post.description || 'No description provided.';
-        
+
         postTagsContainer.innerHTML = '';
         if (post.tags && post.tags.length > 0) {
             post.tags.forEach(tag => {
@@ -127,7 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (voteSectionElement) {
             const upvoteButton = voteSectionElement.querySelector('.upvote');
             const downvoteButton = voteSectionElement.querySelector('.downvote');
-            
+
             upvoteButton.classList.remove('active');
             downvoteButton.classList.remove('active');
 
@@ -170,20 +170,31 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
 
+        // The backend handles toggling by checking if the same vote type is submitted
+        // If user clicks the same vote button again, the backend will remove the vote
         let newVoteValue;
         if (voteType === 'upvote') {
-            newVoteValue = (currentVoteValue === 1) ? 0 : 1; // Toggle upvote or unvote
+            newVoteValue = 1; // Always send 1 for upvote
         } else { // downvote
-            newVoteValue = (currentVoteValue === -1) ? 0 : -1; // Toggle downvote or unvote
+            newVoteValue = -1; // Always send -1 for downvote
         }
-        
+
         try {
+            // Backend expects post_id or comment_id, not target_type and target_id
             const payload = {
-                target_type: targetType,
-                target_id: parseInt(targetId),
-                vote_type: newVoteValue // 0 for unvote, 1 for up, -1 for down
+                vote_type: newVoteValue // Backend only accepts -1 or 1
             };
-            
+
+            // Set the appropriate ID field based on target type
+            if (targetType === 'post') {
+                payload.post_id = parseInt(targetId);
+            } else if (targetType === 'comment') {
+                payload.comment_id = parseInt(targetId);
+            }
+
+            // The backend will handle toggling - if the user already has the same vote type,
+            // it will remove the vote (unvote)
+
             const result = await fetchWithAuth(`${API_BASE_URL}/votes/`, {
                 method: 'POST',
                 body: JSON.stringify(payload),
@@ -229,12 +240,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const commenterName = comment.user ? comment.user.username : 'Anonymous';
             const commenterRole = comment.user && comment.user.role ? comment.user.role : '';
             const commentDate = new Date(comment.created_at).toLocaleString();
-            
+
             const commenterDisplay = `${commenterName}${commenterRole && commenterRole !== 'user' ? ' (' + commenterRole + ')' : ''}`;
 
             commentItem.innerHTML = `
                 <div class="comment-meta">
-                    <span class="commenter-username">${commenterDisplay}</span> - 
+                    <span class="commenter-username">${commenterDisplay}</span> -
                     <span class="comment-timestamp">${commentDate}</span>
                 </div>
                 <p class="comment-content">${comment.content}</p>
@@ -244,12 +255,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="vote-score">${(comment.upvotes || 0) - (comment.downvotes || 0)}</span>
                         <button class="vote-button downvote" data-vote-type="downvote">Downvote</button>
                     </div>
-                    <button class="reply-button" data-comment-id="${comment.id}" data-commenter-username="${commenterUsername}">Reply</button>
+                    <button class="reply-button" data-comment-id="${comment.id}" data-commenter-username="${commenterName}">Reply</button>
                 </div>
             `;
             // Add event listener for comment votes
             commentItem.querySelector('.vote-section').addEventListener('click', handleVote);
-            
+
             // Update initial vote display for the comment
             updateVoteDisplay('comment', comment.id, comment.upvotes, comment.downvotes, comment.user_vote);
 
@@ -257,7 +268,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const replyButton = commentItem.querySelector('.reply-button');
             if (replyButton) {
                 // Update dataset to use commenterName for @mention consistency
-                replyButton.dataset.commenterUsername = commenterName; 
+                replyButton.dataset.commenterUsername = commenterName;
                 replyButton.addEventListener('click', handleReplyClick);
             }
 
@@ -272,10 +283,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const targetCommentId = event.target.dataset.commentId;
         const commenterUsernameForMention = event.target.dataset.commenterUsername; // Use the name part for @mention
-        
+
         commentTextElement.value = `@${commenterUsernameForMention} `;
         commentTextElement.focus();
-        commentForm.dataset.replyToCommentId = targetCommentId; 
+        commentForm.dataset.replyToCommentId = targetCommentId;
     }
 
     commentForm.addEventListener('submit', async (event) => {
@@ -308,12 +319,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (replyToCommentId) {
                 payload.parent_id = parseInt(replyToCommentId);
             }
-            
+
             await fetchWithAuth(`${API_BASE_URL}/posts/${currentPostId}/comments/`, {
                 method: 'POST',
                 body: JSON.stringify(payload),
             });
-            
+
             commentTextElement.value = ''; // Clear textarea
             delete commentForm.dataset.replyToCommentId; // Clear reply state
             await loadComments(currentPostId); // Refresh comments list
@@ -335,16 +346,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (postIdFromUrl) {
             loadPostDetails(postIdFromUrl);
         } else {
-            document.getElementById('postDetailContainer').innerHTML = 
+            document.getElementById('postDetailContainer').innerHTML =
                 '<p class="status-message error-message">No post ID provided in URL.</p>';
         }
-        
+
         // Check auth status and update UI (e.g., show/hide comment form, login links)
         updateAuthUI(); // Call this to set header links too
-        
+
         if (!getAuthToken()) {
             if (commentForm) commentForm.style.display = 'none'; // Hide comment form if not logged in
-            
+
             const authMessageElement = document.getElementById('authMessagePlaceholder');
             if (authMessageElement) { // If placeholder exists, update it
                 authMessageElement.innerHTML = 'You must be <a href="login.html">logged in</a> to comment or vote.';
@@ -381,7 +392,7 @@ document.addEventListener('DOMContentLoaded', () => {
             currentYearElement.textContent = new Date().getFullYear();
         }
     }
-    
+
     // --- Header Authentication UI Update ---
     // (Similar to script.js, but targets header elements)
     function updateAuthUI() {
