@@ -106,7 +106,7 @@ async def delete_image_admin(
     return # Returns 204 No Content on success
 
 # Endpoint to list all images (paginated) - for admin use
-@router.get("/images", response_model=models.PaginatedImages, tags=["Admin"])
+@router.get("/images", response_model=models.PaginatedPosts, tags=["Admin"]) # Changed to PaginatedPosts
 async def list_all_images_admin(
     request: Request, # Added request parameter
     current_user: Annotated[models.User, Depends(get_current_active_superuser)],
@@ -139,5 +139,49 @@ async def list_all_images_admin(
             full_path = "/".join(path_parts)
             
             img.image_url = f"{base_url_str}/{full_path}" # Pydantic V2 validation
+            # Ensure thumbnail_url is also populated if PostForFrontend expects it
+            if hasattr(img, 'thumbnail_url'):
+                img.thumbnail_url = img.image_url # Placeholder for now
             
-    return models.PaginatedImages(limit=limit, offset=skip, total=total_images, data=images_list)
+    # The PaginatedPosts model expects current_page, total_pages, total_items, data
+    # Need to adapt the return to match models.PaginatedPosts structure
+    total_pages_val = (total_images + limit - 1) // limit if limit > 0 else 0
+    current_page_val = (skip // limit) + 1 if limit > 0 else 1
+    
+    # Data needs to be List[PostForFrontend]
+    # The crud.get_images currently returns List[models.Image] (which should be models.Post)
+    # We need to ensure the data being passed is compatible or transformed.
+    # For now, assuming images_list contains items compatible with PostForFrontend after URL population.
+    # This part might need further adjustment based on actual return type of crud.get_posts
+    # and the structure of PostForFrontend.
+
+    # Assuming images_list contains models.Post instances, convert to PostForFrontend
+    frontend_data = []
+    for post_model in images_list: # Assuming images_list are models.Post
+        uploader_base = None
+        if post_model.uploader:
+            uploader_base = models.UserBase(email=post_model.uploader.email, username=post_model.uploader.username)
+
+        frontend_tags_list = [models.FrontendTag(name=tag.name) for tag in post_model.tags]
+
+        frontend_data.append(models.PostForFrontend(
+            id=post_model.id,
+            filename=post_model.filename,
+            title=getattr(post_model, 'title', None), # getattr for safety if field is missing
+            description=getattr(post_model, 'description', None),
+            uploaded_at=post_model.uploaded_at,
+            uploader=uploader_base,
+            tags=frontend_tags_list,
+            image_url=post_model.image_url,
+            thumbnail_url=getattr(post_model, 'thumbnail_url', post_model.image_url), # Use image_url as fallback
+            comment_count=getattr(post_model, 'comment_count', 0),
+            upvotes=getattr(post_model, 'upvotes', 0),
+            downvotes=getattr(post_model, 'downvotes', 0)
+        ))
+
+    return models.PaginatedPosts(
+        data=frontend_data,
+        total_items=total_images,
+        total_pages=total_pages_val,
+        current_page=current_page_val
+    )
