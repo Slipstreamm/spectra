@@ -197,7 +197,17 @@ document.addEventListener('DOMContentLoaded', () => {
         images.forEach(post => { // Renamed 'image' to 'post' for clarity
             const itemDiv = document.createElement('div');
             itemDiv.className = 'gallery-item';
-            // itemDiv.addEventListener('click', () => openModal(post)); // Old modal click
+
+            // Add classes for video/gif based on mimetype
+            if (post.mimetype) {
+                if (post.mimetype.startsWith('video/')) {
+                    itemDiv.classList.add('video-post');
+                } else if (post.mimetype === 'image/gif') {
+                    itemDiv.classList.add('gif-post');
+                }
+            }
+            
+            // Click navigates to post detail page
             itemDiv.addEventListener('click', () => {
                 window.location.href = `post.html?id=${post.id}`;
             });

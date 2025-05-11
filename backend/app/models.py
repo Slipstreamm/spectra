@@ -112,6 +112,7 @@ class PostForFrontend(BaseModel):
     tags: List[FrontendTag] = []
     image_url: HttpUrl
     thumbnail_url: Optional[HttpUrl] = None
+    mimetype: Optional[str] = None # Added for frontend to distinguish file types
     comment_count: int = 0
     upvotes: int = 0
     downvotes: int = 0

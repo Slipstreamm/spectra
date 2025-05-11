@@ -15,13 +15,13 @@
     <header>
         <div class="header-content">
             <h1 class="site-title">Spectra Gallery</h1>
-            <div class="search-container">
-                <input type="text" id="tagSearchInput" placeholder="Enter tags (e.g., nature landscape)">
-                <button id="searchButton">Search</button>
-            </div>
             <nav class="main-nav">
                 <a href="index.html" class="active">Gallery</a>
                 <a href="upload/index.html">Upload</a>
+                <!-- Add other primary navigation links here if needed, inspired by example -->
+                <!-- <a href="#">Posts</a> -->
+                <!-- <a href="#">Comments</a> -->
+                <!-- <a href="#">Tags</a> -->
             </nav>
             <div class="user-actions">
                 <button id="themeToggle">Toggle Theme</button>
@@ -34,18 +34,53 @@
         </div>
     </header>
 
-    <main>
-        <div class="controls-bar">
-            <!-- Future advanced sort/filter options can go here -->
-        </div>
-        <div id="galleryContainer" class="gallery-grid">
-            <!-- Images will be loaded here by JavaScript -->
-            <p class="status-message">Loading images...</p>
-        </div>
-        <div id="paginationControls">
-            <!-- Pagination buttons will be loaded here -->
-        </div>
-    </main>
+    <div class="main-container">
+        <aside id="sidebar">
+            <div class="search-container">
+                <h2>Search</h2>
+                <input type="text" id="tagSearchInput" placeholder="Enter tags (e.g., nature landscape)">
+                <button id="searchButton">Search</button>
+            </div>
+            <div id="tag-display-area">
+                <h3>Tags</h3>
+                <!-- Placeholder for tag categories and lists -->
+                <div class="tag-category">
+                    <h4>Copyright</h4>
+                    <ul>
+                        <li><a href="#">tag_a (123)</a></li>
+                        <li><a href="#">another_tag (45)</a></li>
+                    </ul>
+                </div>
+                <div class="tag-category">
+                    <h4>Character</h4>
+                    <ul>
+                        <li><a href="#">character_x (78)</a></li>
+                    </ul>
+                </div>
+                <div class="tag-category">
+                    <h4>General</h4>
+                    <ul>
+                        <li><a href="#">general_topic (200)</a></li>
+                        <li><a href="#">more_general (90)</a></li>
+                    </ul>
+                </div>
+            </div>
+        </aside>
+
+        <main id="content-area">
+            <!-- The existing controls-bar might be removed or re-purposed if not needed with sidebar -->
+            <!-- <div class="controls-bar"> -->
+                <!-- Future advanced sort/filter options can go here -->
+            <!-- </div> -->
+            <div id="galleryContainer" class="gallery-grid">
+                <!-- Images will be loaded here by JavaScript -->
+                <p class="status-message">Loading images...</p>
+            </div>
+            <div id="paginationControls">
+                <!-- Pagination buttons will be loaded here -->
+            </div>
+        </main>
+    </div>
 
     <footer>
         <p>&copy; 2024 Spectra Gallery. Inspired by minimalist designs.</p>

@@ -163,6 +163,7 @@ async def list_posts(
                 tags=frontend_tags,
                 image_url=image_url,
                 thumbnail_url=thumbnail_url,
+                mimetype=post_model.mimetype, # Added mimetype
                 comment_count=post_model.comment_count,
                 upvotes=post_model.upvotes,
                 downvotes=post_model.downvotes
