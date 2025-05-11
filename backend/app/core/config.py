@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     DEFAULT_RATE_LIMIT: str = "100/minute" # Default rate limit for general API access
     UPLOAD_RATE_LIMIT: str = "1/minute" # Specific rate limit for uploads
 
+    # Pagination settings
+    DEFAULT_IMAGES_PER_PAGE: int = 20
+    MAX_IMAGES_PER_PAGE: int = 100
+
     # Security settings for JWT
     # IMPORTANT: SECRET_KEY should be a strong, random string and kept secret in production.
     # It's recommended to load this from an environment variable and not hardcode it.

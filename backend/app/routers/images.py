@@ -4,6 +4,7 @@ import uuid
 from pathlib import Path
 from typing import List, Optional
 import magic # For python-magic
+import math # Added for ceil
 
 import asyncpg
 import redis.asyncio as redis_async # For type hinting
@@ -184,33 +185,77 @@ async def upload_image(
         raise HTTPException(status_code=500, detail=f"Database error during image upload: {e}")
 
 
-@router.get("/images/", response_model=models.PaginatedImages)
+@router.get("/images/", response_model=models.PaginatedImagesResponse)
 async def list_images(
     request: Request,
-    skip: int = Query(0, ge=0, description="Number of records to skip for pagination"),
-    limit: int = Query(10, ge=1, le=100, description="Maximum number of records to return"),
-    tags: Optional[str] = Query(None, description="Comma-separated tags to filter by (e.g., 'cat,dog')"),
+    page: int = Query(1, ge=1, description="Page number for pagination (1-indexed)"),
+    limit: int = Query(settings.DEFAULT_IMAGES_PER_PAGE, ge=1, le=settings.MAX_IMAGES_PER_PAGE, description="Number of images per page"),
+    tags: Optional[str] = Query(None, description="Comma-separated tags to filter by (e.g., 'nature,sky')"),
     db: asyncpg.Connection = Depends(get_db_connection),
-    redis: redis_async.Redis = Depends(get_redis_connection) # Added redis dependency
+    redis: redis_async.Redis = Depends(get_redis_connection)
 ):
     """
-    Retrieve a paginated list of images.
-    Supports filtering by tags (all provided tags must be present on an image).
+    Retrieve a paginated list of images, supporting tag-based filtering.
+    The frontend expects `page` (1-indexed) and `limit`.
+    The response should include `total_items`, `total_pages`, and `current_page`.
     """
-    tags_list = tags.split(',') if tags else None
+    tags_list = tags.split(',') if tags and tags.strip() else None
+
+    # Calculate skip/offset for CRUD operations
+    skip = (page - 1) * limit
+
+    images_from_db = await crud.get_images(db=db, redis=redis, skip=skip, limit=limit, tags_filter=tags_list)
+    total_items = await crud.count_images(db=db, redis=redis, tags_filter=tags_list)
+
+    if total_items == 0:
+        total_pages = 0
+    else:
+        total_pages = math.ceil(total_items / limit)
     
-    images_data = await crud.get_images(db=db, redis=redis, skip=skip, limit=limit, tags_filter=tags_list)
-    total_count = await crud.count_images(db=db, redis=redis, tags_filter=tags_list)
-    
-    response_images = []
-    for img_model in images_data: # crud.get_images now returns list of models.Image
-        img_model.image_url = get_image_url(request, img_model.filename) # Pydantic V2 validation
-        response_images.append(img_model)
+    # If requested page is out of bounds after filtering, return empty list for current page
+    # but still provide correct total_items and total_pages.
+    # Example: 10 items, limit 5. total_pages = 2. If page=3 requested, data is empty.
+    if page > total_pages and total_items > 0 : # if total_items is 0, page will be 1, total_pages 0. page > total_pages.
+        # This ensures that if a page beyond the actual number of pages is requested,
+        # we return an empty list for `data` but correct pagination metadata.
+        # However, crud.get_images would likely return an empty list anyway if skip is too high.
+        # This check is more for clarity or if crud.get_images had different behavior.
+        # For now, we'll rely on crud.get_images to return empty if skip is out of bounds.
+        pass
 
-    return models.PaginatedImages(limit=limit, offset=skip, total=total_count, data=response_images)
+
+    frontend_images: List[models.ImageForFrontend] = []
+    for img_model in images_from_db: # img_model is models.Image
+        # Ensure image_url is populated
+        img_model.image_url = get_image_url(request, img_model.filename)
+        
+        # For now, thumbnail_url will be the same as image_url.
+        # In a real scenario, this might point to a specifically generated thumbnail.
+        img_model.thumbnail_url = img_model.image_url
+
+        # Transform tags from List[models.Tag] to List[models.FrontendTag]
+        frontend_tags = [models.FrontendTag(name=tag.name) for tag in img_model.tags]
+
+        frontend_images.append(
+            models.ImageForFrontend(
+                id=img_model.id,
+                filename=img_model.filename,
+                uploaded_at=img_model.uploaded_at,
+                tags=frontend_tags,
+                image_url=img_model.image_url, # Already HttpUrl
+                thumbnail_url=img_model.thumbnail_url # Also HttpUrl
+            )
+        )
+
+    return models.PaginatedImagesResponse(
+        data=frontend_images,
+        total_items=total_items,
+        total_pages=total_pages,
+        current_page=page
+    )
 
 
-@router.get("/images/{image_id}/", response_model=models.Image)
+@router.get("/images/{image_id}/", response_model=models.Image) # Keeping original response model for single image
 async def get_image_details(
     request: Request,
     image_id: int,

@@ -33,6 +33,7 @@ class Image(ImageBase):
     uploaded_at: datetime
     tags: List[Tag] = []
     image_url: Optional[HttpUrl] = None # Field to be populated by a property or resolver
+    thumbnail_url: Optional[HttpUrl] = None # Added for frontend compatibility
 
     model_config = {"from_attributes": True} # Pydantic V2 style
 
@@ -40,11 +41,27 @@ class ImageInDB(Image):
     # Potentially more fields that are in DB but not always returned to client
     pass
 
-class PaginatedImages(BaseModel):
-    limit: int
-    offset: int
-    total: int
-    data: List[Image]
+# Model for individual image tag as expected by frontend (name only)
+class FrontendTag(BaseModel):
+    name: str
+
+# Model for individual image as expected by frontend
+class ImageForFrontend(BaseModel):
+    id: int
+    filename: str
+    uploaded_at: datetime # FastAPI will convert to ISO string
+    tags: List[FrontendTag] = []
+    image_url: HttpUrl # Should always be present for frontend
+    thumbnail_url: Optional[HttpUrl] = None
+
+    model_config = {"from_attributes": True}
+
+
+class PaginatedImagesResponse(BaseModel):
+    data: List[ImageForFrontend]
+    total_items: int
+    total_pages: int
+    current_page: int
 
 # User models
 class UserBase(BaseModel):
