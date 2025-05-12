@@ -578,6 +578,62 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- Site Info Fetching and Applying ---
+    async function fetchAndApplySiteInfo() {
+        try {
+            const response = await fetch(`${API_BASE_URL}/site-info`);
+            if (!response.ok) {
+                console.error(`HTTP error fetching site info! status: ${response.status}`);
+                return;
+            }
+            const siteInfo = await response.json(); // Expecting { name: "...", description: "..." }
+
+            // Update document title
+            document.title = siteInfo.name || 'Image Gallery';
+
+            // Update meta description tag
+            let metaDescription = document.querySelector('meta[name="description"]');
+            if (!metaDescription) {
+                metaDescription = document.createElement('meta');
+                metaDescription.setAttribute('name', 'description');
+                document.head.appendChild(metaDescription);
+            }
+            metaDescription.setAttribute('content', siteInfo.description || 'Browse and enjoy images.');
+
+            // Update Open Graph title
+            let ogTitle = document.querySelector('meta[property="og:title"]');
+            if (ogTitle) {
+                ogTitle.setAttribute('content', siteInfo.name || 'Image Gallery');
+            }
+
+            // Update Open Graph description
+            let ogDescription = document.querySelector('meta[property="og:description"]');
+            if (ogDescription) {
+                ogDescription.setAttribute('content', siteInfo.description || 'Browse and enjoy images.');
+            }
+
+            // Update visible site title in header
+            const siteTitleElement = document.querySelector('.site-title');
+            if (siteTitleElement) {
+                siteTitleElement.textContent = siteInfo.name || 'Image Gallery';
+            }
+
+            // Update footer copyright (if it exists and follows a pattern)
+            const footerParagraphs = document.querySelectorAll('footer p');
+            footerParagraphs.forEach(p => {
+                if (p.textContent.includes('Spectra Gallery')) { // Simple check
+                    p.textContent = p.textContent.replace('Spectra Gallery', siteInfo.name || 'The Gallery');
+                }
+                // More robust: if footer has a specific ID/class for copyright text
+                // const copyrightElement = document.getElementById('copyrightSiteName');
+                // if (copyrightElement) copyrightElement.textContent = siteInfo.name;
+            });
+
+        } catch (error) {
+            console.error('Error fetching or applying site info:', error);
+        }
+    }
+
     // --- Initial Load ---
     const urlParams = new URLSearchParams(window.location.search);
     const initialTagsFromURL = urlParams.get('tags');
@@ -643,6 +699,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fetchImages('', 1, currentSortBy, currentOrder, IMAGES_PER_PAGE, {}); 
     }
     fetchAndDisplayTags(); // Load tags for the sidebar
+    fetchAndApplySiteInfo(); // Load and apply site name and description
 
     // The old upload form logic is removed as per the new design focus.
     // If upload functionality is needed on this page, it would need to be re-integrated.
