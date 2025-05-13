@@ -1,5 +1,7 @@
 <script lang="ts">
-    import '@skeletonlabs/skeleton/themes/theme-skeleton.css';
+    import '../app.css';
+    import '@skeletonlabs/skeleton/styles/all.css';
+    import '@skeletonlabs/skeleton/styles/skeleton.css';
     import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 </script>
 
