@@ -6,5 +6,13 @@ export default defineConfig({
 	plugins: [
 		tailwindcss(),
 		sveltekit()
-	]
+	],
+	server: {
+		allowedHosts: [
+			'localhost',
+			'127.0.0.1',
+			'spectra.slipstreamm.dev',
+			'xbooru.xyz'
+		]
+	}
 });
