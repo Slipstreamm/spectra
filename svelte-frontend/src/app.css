@@ -1,3 +1,9 @@
 @import 'tailwindcss/base';
 @import 'tailwindcss/components';
 @import 'tailwindcss/utilities';
+
+/* Skeleton Theme */
+@import '@skeletonlabs/skeleton-svelte/styles/all.css';
+@import '@skeletonlabs/skeleton-svelte/styles/skeleton.css';
+/* For Tailwind Elements */
+@import '@skeletonlabs/skeleton-svelte/styles/elements.css';
