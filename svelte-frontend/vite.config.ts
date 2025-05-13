@@ -13,6 +13,15 @@ export default defineConfig({
 			'127.0.0.1',
 			'spectra.slipstreamm.dev',
 			'xbooru.xyz'
-		]
+		],
+		proxy: {
+			'/api': {
+				target: 'http://localhost:8000', // Assuming FastAPI runs on port 8000
+				changeOrigin: true, // Recommended for virtual hosted sites
+				secure: false, // Set to true if your backend is HTTPS and you have a valid cert
+				// You might need rewrite if your backend API paths don't start with /api
+				// rewrite: (path) => path.replace(/^\/api/, '') 
+			}
+		}
 	}
 });
